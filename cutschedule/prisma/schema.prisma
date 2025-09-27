@@ -1,0 +1,56 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  googleId  String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+}
+
+model WorkingHours {
+  id        String  @id @default(cuid())
+  dayOfWeek Int     // 0-6 (Sunday-Saturday)
+  startTime String  // "09:00"
+  endTime   String  // "18:00"
+  isActive  Boolean @default(true)
+}
+
+model Appointment {
+  id            String   @id @default(cuid())
+  clientName    String
+  phoneNumber   String
+  date          DateTime
+  startTime     DateTime
+  endTime       DateTime
+  status        String   @default("confirmed") // confirmed, cancelled, completed
+  googleEventId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([phoneNumber])
+  @@index([date])
+  @@index([status])
+}
+
+model SMSLog {
+  id            String   @id @default(cuid())
+  appointmentId String
+  phoneNumber   String
+  messageType   String   // confirmation, reminder_1day, reminder_1hour, reschedule_2weeks, reschedule_3weeks
+  sentAt        DateTime @default(now())
+  status        String   // sent, failed
+  twilioSid     String?
+
+  @@index([appointmentId])
+}
