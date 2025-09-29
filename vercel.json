@@ -10,10 +10,5 @@
       "schedule": "0 10 * * *"
     }
   ],
-  "functions": {
-    "cutschedule/app/api/cron/reminders/route.ts": {
-      "maxDuration": 30
-    }
-  },
   "regions": ["iad1"]
 }

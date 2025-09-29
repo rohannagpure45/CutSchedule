@@ -3,6 +3,9 @@ import { prisma } from '@/lib/db'
 import { sendReminderSMS, sendSMS } from '@/lib/sms'
 import { addDays, addHours, startOfDay, endOfDay, subWeeks, format } from 'date-fns'
 
+// Configure function timeout for Vercel
+export const maxDuration = 30
+
 // Verify the request is from a legitimate cron service
 function verifyCronAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
