@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Calendar, CheckSquare, RotateCcw, Clock, MapPin, Phone } from "lucide-react"
 import { APP_CONFIG } from "@/lib/constants"
 
+// Test deployment with Root Directory set to cutschedule
+
 export default function HomePage() {
   return (
     <div className="container mx-auto px-4 py-16">
