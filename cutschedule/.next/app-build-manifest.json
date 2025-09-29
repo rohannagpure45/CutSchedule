@@ -1,14 +1,9 @@
 {
   "pages": {
-    "/api/availability/route": [
+    "/api/cron/reminders/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/availability/route.js"
-    ],
-    "/api/appointments/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/appointments/route.js"
+      "static/chunks/app/api/cron/reminders/route.js"
     ]
   }
 }
