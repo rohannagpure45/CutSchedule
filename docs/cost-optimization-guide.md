@@ -89,17 +89,32 @@ await prisma.appointment.findMany({
 })
 ```
 
+## Vercel Plan Limitations
+
+### Hobby Plan Restrictions
+- **Cron Jobs**: Limited to **once per day** only
+- **Current Setup**: Daily reminder job at 10 AM
+- **Coverage**: Handles 1-day reminders, 1-hour reminders, and re-engagement messages in single run
+- **Upgrade Required**: For multiple daily runs (9 AM, 12 PM, 3 PM, 6 PM)
+
+### Pro Plan Benefits ($20/month)
+- **Cron Jobs**: Unlimited frequency
+- **Multiple Daily Runs**: `0 9,12,15,18 * * *` (4 times daily)
+- **Better Coverage**: More timely 1-hour reminders
+- **Advanced Analytics**: Detailed performance monitoring
+
 ## Scaling Strategy
 
 ### Phase 1: Free Tier (0-100 appointments/month)
 - Vercel Hobby + Neon Free
+- **Daily cron at 10 AM** (Hobby limitation)
 - Manual monitoring
 
 ### Phase 2: Low Volume (100-500 appointments/month)
-- Keep Vercel Hobby
+- **Consider Vercel Pro** for better reminder timing
 - Upgrade to Neon Pro if needed
 
 ### Phase 3: Growing Business (500+ appointments/month)
-- Upgrade to Vercel Pro
+- Upgrade to Vercel Pro (essential for business)
 - Consider Neon Scale plan
 - Implement caching strategies
