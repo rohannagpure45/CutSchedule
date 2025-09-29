@@ -9,11 +9,12 @@ import { deleteCalendarEvent, updateCalendarEvent } from '@/lib/calendar'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const appointment = await prisma.appointment.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!appointment) {
@@ -35,14 +36,15 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const validatedData = appointmentUpdateSchema.parse(body)
 
     const appointment = await prisma.appointment.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!appointment) {
@@ -55,7 +57,7 @@ export async function PATCH(
     // If only updating status
     if (validatedData.status && !validatedData.date && !validatedData.time) {
       const updatedAppointment = await prisma.appointment.update({
-        where: { id: params.id },
+        where: { id },
         data: { status: validatedData.status },
       })
 
@@ -92,7 +94,7 @@ export async function PATCH(
       // Check for conflicts (excluding current appointment)
       const conflictingAppointments = await prisma.appointment.findMany({
         where: {
-          id: { not: params.id }, // Exclude current appointment
+          id: { not: id }, // Exclude current appointment
           date: {
             gte: startOfDay(newDate),
             lte: endOfDay(newDate),
@@ -128,7 +130,7 @@ export async function PATCH(
 
       // Update appointment
       const updatedAppointment = await prisma.appointment.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           date: newDate,
           startTime: newStartTime,
@@ -171,7 +173,7 @@ export async function PATCH(
     if (validatedData.status) updateData.status = validatedData.status
 
     const updatedAppointment = await prisma.appointment.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
     })
 
@@ -196,11 +198,12 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const appointment = await prisma.appointment.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!appointment) {
@@ -212,7 +215,7 @@ export async function DELETE(
 
     // Mark as cancelled instead of deleting
     const cancelledAppointment = await prisma.appointment.update({
-      where: { id: params.id },
+      where: { id },
       data: { status: 'cancelled' },
     })
 

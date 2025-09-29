@@ -20,7 +20,7 @@ export default function AdminLoginPage() {
       }
     }
     checkSession()
-  }, [])
+  }, [router])
 
   const handleGoogleSignIn = async () => {
     try {
@@ -39,7 +39,7 @@ export default function AdminLoginPage() {
           setError('Authentication failed. Please try again.')
         }
       } else if (result?.url) {
-        router.push(result.url)
+        window.location.href = result.url
       }
     } catch (error) {
       console.error('Sign-in error:', error)

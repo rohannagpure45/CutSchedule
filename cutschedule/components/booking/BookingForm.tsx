@@ -231,7 +231,7 @@ export function BookingForm({ onSubmit, className }: BookingFormProps) {
                     </p>
                     <p><Clock className="w-4 h-4 inline mr-2" />
                       {formatTime(new Date(`2000-01-01T${selectedTime}:00`))} - {
-                        formatTime(new Date(`2000-01-01T${selectedTime}:00`).getTime() + 45 * 60000)
+                        formatTime(new Date(new Date(`2000-01-01T${selectedTime}:00`).getTime() + 45 * 60000))
                       } (45 minutes)
                     </p>
                   </div>

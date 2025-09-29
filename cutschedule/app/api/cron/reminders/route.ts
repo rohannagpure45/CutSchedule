@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       oneDayReminders: 0,
       oneHourReminders: 0,
       reEngagementMessages: 0,
-      errors: []
+      errors: [] as string[]
     }
 
     // 1. Send 1-day reminders

@@ -39,7 +39,7 @@ export default function AdminDashboard() {
     }
 
     fetchAppointments()
-  }, [session, status])
+  }, [session, status, router])
 
   const fetchAppointments = async () => {
     try {
