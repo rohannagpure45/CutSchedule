@@ -39,7 +39,7 @@ export default function AdminDashboard() {
     }
 
     fetchAppointments()
-  }, [session, status, router])
+  }, [session, status])
 
   const fetchAppointments = async () => {
     try {
@@ -195,7 +195,7 @@ export default function AdminDashboard() {
           {/* Today's Appointments */}
           <Card>
             <CardHeader>
-              <CardTitle>Today's Appointments</CardTitle>
+              <CardTitle>Today&apos;s Appointments</CardTitle>
               <CardDescription>
                 {todayAppointments.length} {todayAppointments.length === 1 ? 'appointment' : 'appointments'} scheduled for today
               </CardDescription>

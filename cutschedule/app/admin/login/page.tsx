@@ -20,7 +20,7 @@ export default function AdminLoginPage() {
       }
     }
     checkSession()
-  }, [router])
+  }, [])
 
   const handleGoogleSignIn = async () => {
     try {
