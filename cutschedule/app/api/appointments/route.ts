@@ -1,0 +1,218 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { appointmentBookingSchema, normalizePhoneNumber } from '@/lib/utils/validation'
+import { combineDateTime } from '@/lib/utils/dates'
+import { addMinutes, startOfDay, endOfDay } from 'date-fns'
+import { APP_CONFIG } from '@/lib/constants'
+import { sendConfirmationSMS } from '@/lib/sms'
+import { createCalendarEvent } from '@/lib/calendar'
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams
+    const status = searchParams.get('status')
+    const date = searchParams.get('date')
+    const phoneNumber = searchParams.get('phone')
+
+    const where: any = {}
+
+    if (status) {
+      where.status = status
+    }
+
+    if (date) {
+      const targetDate = new Date(date)
+      where.date = {
+        gte: startOfDay(targetDate),
+        lte: endOfDay(targetDate),
+      }
+    }
+
+    if (phoneNumber) {
+      where.phoneNumber = normalizePhoneNumber(phoneNumber)
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where,
+      orderBy: {
+        startTime: 'asc',
+      },
+    })
+
+    return NextResponse.json(appointments)
+  } catch (error) {
+    console.error('Error fetching appointments:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch appointments' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    console.log('Received booking request:', body)
+
+    // Validate input data
+    const validatedData = appointmentBookingSchema.parse(body)
+    console.log('Validated data:', validatedData)
+
+    // Check if phone number already has an active appointment
+    const existingAppointment = await prisma.appointment.findFirst({
+      where: {
+        phoneNumber: validatedData.phoneNumber,
+        status: 'confirmed',
+        startTime: {
+          gte: new Date(),
+        },
+      },
+    })
+
+    if (existingAppointment) {
+      return NextResponse.json(
+        {
+          error: 'You already have an upcoming appointment',
+          existingAppointment: {
+            id: existingAppointment.id,
+            date: existingAppointment.date,
+            startTime: existingAppointment.startTime,
+          }
+        },
+        { status: 400 }
+      )
+    }
+
+    // Parse date and time
+    const appointmentDate = new Date(validatedData.date)
+    const startTime = combineDateTime(validatedData.date, validatedData.time)
+    const endTime = addMinutes(startTime, APP_CONFIG.APPOINTMENT_DURATION)
+
+    console.log('Appointment timing:', {
+      date: appointmentDate,
+      startTime,
+      endTime
+    })
+
+    // Verify the time slot is still available
+    const dayOfWeek = appointmentDate.getDay()
+    const workingHours = await prisma.workingHours.findUnique({
+      where: { dayOfWeek },
+    })
+
+    if (!workingHours || !workingHours.isActive) {
+      return NextResponse.json(
+        { error: 'Selected day is not available for appointments' },
+        { status: 400 }
+      )
+    }
+
+    // Check for conflicting appointments
+    const conflictingAppointments = await prisma.appointment.findMany({
+      where: {
+        date: {
+          gte: startOfDay(appointmentDate),
+          lte: endOfDay(appointmentDate),
+        },
+        status: {
+          not: 'cancelled',
+        },
+        OR: [
+          {
+            startTime: {
+              lt: addMinutes(endTime, APP_CONFIG.BUFFER_TIME),
+              gte: startTime,
+            },
+          },
+          {
+            endTime: {
+              gt: startTime,
+              lte: addMinutes(endTime, APP_CONFIG.BUFFER_TIME),
+            },
+          },
+          {
+            startTime: {
+              lte: startTime,
+            },
+            endTime: {
+              gte: addMinutes(endTime, APP_CONFIG.BUFFER_TIME),
+            },
+          },
+        ],
+      },
+    })
+
+    if (conflictingAppointments.length > 0) {
+      return NextResponse.json(
+        { error: 'Selected time slot is no longer available' },
+        { status: 400 }
+      )
+    }
+
+    // Create appointment
+    const appointment = await prisma.appointment.create({
+      data: {
+        clientName: validatedData.clientName,
+        phoneNumber: validatedData.phoneNumber,
+        date: appointmentDate,
+        startTime,
+        endTime,
+        status: 'confirmed',
+      },
+    })
+
+    console.log('Appointment created:', appointment)
+
+    // Send confirmation SMS
+    try {
+      const smsResult = await sendConfirmationSMS(appointment)
+      if (smsResult.success) {
+        console.log('Confirmation SMS sent successfully:', smsResult.messageId)
+      } else {
+        console.error('Failed to send confirmation SMS:', smsResult.error)
+      }
+    } catch (error) {
+      console.error('Error sending confirmation SMS:', error)
+      // Don't fail the appointment creation if SMS fails
+    }
+
+    // Create Google Calendar event
+    try {
+      const calendarResult = await createCalendarEvent(appointment)
+      if (calendarResult.success && calendarResult.eventId) {
+        console.log('Calendar event created successfully:', calendarResult.eventId)
+
+        // Update appointment with Google Calendar event ID
+        await prisma.appointment.update({
+          where: { id: appointment.id },
+          data: { googleEventId: calendarResult.eventId },
+        })
+      } else {
+        console.error('Failed to create calendar event:', calendarResult.error)
+      }
+    } catch (error) {
+      console.error('Error creating calendar event:', error)
+      // Don't fail the appointment creation if calendar event fails
+    }
+
+    return NextResponse.json(appointment, { status: 201 })
+
+  } catch (error) {
+    console.error('Error creating appointment:', error)
+
+    if (error instanceof Error && error.name === 'ZodError') {
+      return NextResponse.json(
+        {
+          error: 'Invalid input data',
+          details: (error as any).errors
+        },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to create appointment' },
+      { status: 500 }
+    )
+  }
+}
