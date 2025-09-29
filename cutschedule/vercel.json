@@ -1,6 +1,4 @@
 {
-  "framework": "nextjs",
-  "rootDirectory": "cutschedule",
   "crons": [
     {
       "path": "/api/cron/reminders",
