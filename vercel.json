@@ -1,0 +1,19 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cd cutschedule && npm run build",
+  "installCommand": "cd cutschedule && npm install",
+  "devCommand": "cd cutschedule && npm run dev",
+  "outputDirectory": "cutschedule/.next",
+  "crons": [
+    {
+      "path": "/api/cron/reminders",
+      "schedule": "0 10 * * *"
+    }
+  ],
+  "functions": {
+    "cutschedule/app/api/cron/reminders/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "regions": ["iad1"]
+}
