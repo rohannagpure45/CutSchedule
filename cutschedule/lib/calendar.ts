@@ -82,7 +82,7 @@ export async function createCalendarEvent(
   }
 ): Promise<{ success: boolean; eventId?: string; error?: string }> {
   try {
-    const calendar = getGoogleCalendarClient()
+    const calendar = await getGoogleCalendarClient()
 
     const event: CalendarEvent = {
       summary: `Haircut - ${appointment.clientName}`,
@@ -131,7 +131,7 @@ export async function updateCalendarEvent(
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const calendar = getGoogleCalendarClient()
+    const calendar = await getGoogleCalendarClient()
 
     const event: CalendarEvent = {
       summary: `Haircut - ${appointment.clientName}`,
@@ -171,7 +171,7 @@ export async function deleteCalendarEvent(
   eventId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const calendar = getGoogleCalendarClient()
+    const calendar = await getGoogleCalendarClient()
 
     console.log('Deleting calendar event:', eventId)
 
@@ -198,7 +198,7 @@ export async function getCalendarEvents(
   timeMax: Date
 ): Promise<{ success: boolean; events?: any[]; error?: string }> {
   try {
-    const calendar = getGoogleCalendarClient()
+    const calendar = await getGoogleCalendarClient()
 
     console.log('Fetching calendar events from', timeMin, 'to', timeMax)
 
