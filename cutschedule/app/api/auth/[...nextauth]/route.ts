@@ -28,36 +28,80 @@ const handler = NextAuth({
         return false
       }
 
-      // Check if admin exists, if not create it
-      const admin = await prisma.admin.findUnique({
-        where: { email: user.email! },
-      })
+      // Handle account linking for existing users
+      if (account?.provider === 'google') {
+        try {
+          // Check if user exists
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email! },
+            include: { accounts: true }
+          })
 
-      if (!admin) {
-        console.log('Creating new admin record for:', user.email)
-        await prisma.admin.create({
-          data: {
-            email: user.email!,
-            googleId: account!.providerAccountId,
-            name: user.name || 'Admin User',
-          },
-        })
-      } else if (admin.googleId !== account!.providerAccountId) {
-        // Update Google ID if it changed
-        await prisma.admin.update({
-          where: { email: user.email! },
-          data: { googleId: account!.providerAccountId },
-        })
-      }
+          if (existingUser) {
+            // Check if this Google account is already linked
+            const existingAccount = existingUser.accounts.find(
+              acc => acc.provider === 'google' && acc.providerAccountId === account.providerAccountId
+            )
 
-      // Store refresh token for Google Calendar API if available
-      if (account?.refresh_token) {
-        console.log('Storing refresh token for Calendar API')
-        // In a real app, store this securely in database
-        // For now, we'll use the environment variable approach
+            if (!existingAccount) {
+              // Link the Google account to existing user
+              await prisma.account.create({
+                data: {
+                  userId: existingUser.id,
+                  type: account.type,
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                  refresh_token: account.refresh_token,
+                  access_token: account.access_token,
+                  expires_at: account.expires_at,
+                  token_type: account.token_type,
+                  scope: account.scope,
+                  id_token: account.id_token,
+                  session_state: account.session_state,
+                }
+              })
+            }
+          }
+
+          // Check if admin exists, if not create it
+          const admin = await prisma.admin.findUnique({
+            where: { email: user.email! },
+          })
+
+          if (!admin) {
+            console.log('Creating new admin record for:', user.email)
+            await prisma.admin.create({
+              data: {
+                email: user.email!,
+                googleId: account.providerAccountId,
+                name: user.name || 'Admin User',
+              },
+            })
+          } else if (admin.googleId !== account.providerAccountId && admin.googleId === 'pending-first-login') {
+            // Update Google ID if it's the first login
+            await prisma.admin.update({
+              where: { email: user.email! },
+              data: { googleId: account.providerAccountId },
+            })
+          }
+        } catch (error) {
+          console.error('Error during sign in:', error)
+          return false
+        }
       }
 
       return true
+    },
+    async redirect({ url, baseUrl }) {
+      // Redirect to admin dashboard after successful sign in
+      if (url.startsWith(baseUrl)) {
+        return url
+      }
+      // Always redirect to admin page after sign in
+      if (url === baseUrl || url === '/') {
+        return `${baseUrl}/admin`
+      }
+      return baseUrl + '/admin'
     },
     async session({ session, token, user }) {
       // Add admin flag to session

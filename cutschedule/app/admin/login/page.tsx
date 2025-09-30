@@ -1,17 +1,28 @@
 'use client'
 
 import { signIn, getSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AdminLoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Check for error in URL params
+    const urlError = searchParams.get('error')
+    if (urlError === 'OAuthAccountNotLinked') {
+      setError('Account linking issue detected. Please try signing in again.')
+    } else if (urlError === 'AccessDenied') {
+      setError('Access denied. Only authorized administrators can sign in.')
+    } else if (urlError) {
+      setError('Authentication failed. Please try again.')
+    }
+
     // Check if user is already logged in
     const checkSession = async () => {
       const session = await getSession()
@@ -20,31 +31,21 @@ export default function AdminLoginPage() {
       }
     }
     checkSession()
-  }, [router])
+  }, [router, searchParams])
 
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true)
       setError(null)
 
-      const result = await signIn('google', {
+      // Use NextAuth's redirect to ensure proper flow
+      await signIn('google', {
         callbackUrl: '/admin',
-        redirect: false,
+        redirect: true,
       })
-
-      if (result?.error) {
-        if (result.error === 'AccessDenied') {
-          setError('Access denied. Only authorized administrators can sign in.')
-        } else {
-          setError('Authentication failed. Please try again.')
-        }
-      } else if (result?.url) {
-        window.location.href = result.url
-      }
     } catch (error) {
       console.error('Sign-in error:', error)
       setError('An unexpected error occurred. Please try again.')
-    } finally {
       setIsLoading(false)
     }
   }
