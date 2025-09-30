@@ -43,6 +43,26 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Check for blocked dates
+    const blockedDates = await prisma.blockedDate.findMany({
+      where: {
+        date: {
+          gte: startOfDay(date),
+          lte: endOfDay(date),
+        }
+      }
+    })
+
+    // Check if entire day is blocked
+    const fullDayBlocked = blockedDates.some(bd => bd.isFullDay)
+    if (fullDayBlocked) {
+      return NextResponse.json({
+        available: false,
+        slots: [],
+        reason: 'Date is blocked'
+      })
+    }
+
     // Get working hours for this day
     const workingHours = await prisma.workingHours.findUnique({
       where: {
@@ -80,7 +100,8 @@ export async function GET(request: NextRequest) {
       workingHours.startTime,
       workingHours.endTime,
       appointments,
-      date
+      date,
+      blockedDates
     )
 
     return NextResponse.json({
@@ -115,7 +136,8 @@ function generateAvailableSlots(
   startTime: string,
   endTime: string,
   appointments: Array<{ startTime: Date; endTime: Date }>,
-  targetDate: Date
+  targetDate: Date,
+  blockedDates: Array<{ startTime: string | null; endTime: string | null; isFullDay: boolean }>
 ): string[] {
   const slots: string[] = []
 
@@ -163,7 +185,7 @@ function generateAvailableSlots(
     }
 
     // Check if this slot conflicts with any appointment (including buffer)
-    const isBlocked = appointments.some(apt => {
+    const isBlockedByAppointment = appointments.some(apt => {
       const aptStart = new Date(apt.startTime)
       const aptEndWithBuffer = addMinutes(new Date(apt.endTime), APP_CONFIG.BUFFER_TIME)
 
@@ -176,7 +198,33 @@ function generateAvailableSlots(
       )
     })
 
-    if (!isBlocked) {
+    // Check if this slot conflicts with any blocked date time range
+    const isBlockedByDate = blockedDates.some(blocked => {
+      if (blocked.isFullDay) return true // Already handled above, but just in case
+
+      if (blocked.startTime && blocked.endTime) {
+        const [blockStartHour, blockStartMinute] = blocked.startTime.split(':').map(Number)
+        const [blockEndHour, blockEndMinute] = blocked.endTime.split(':').map(Number)
+
+        const blockStart = new Date(baseDate)
+        blockStart.setHours(blockStartHour, blockStartMinute, 0, 0)
+
+        const blockEnd = new Date(baseDate)
+        blockEnd.setHours(blockEndHour, blockEndMinute, 0, 0)
+
+        // Check for overlap with blocked time
+        return (
+          isWithinInterval(currentSlot, { start: blockStart, end: blockEnd }) ||
+          isWithinInterval(slotEnd, { start: blockStart, end: blockEnd }) ||
+          isWithinInterval(blockStart, { start: currentSlot, end: slotEnd }) ||
+          isWithinInterval(blockEnd, { start: currentSlot, end: slotEnd })
+        )
+      }
+
+      return false
+    })
+
+    if (!isBlockedByAppointment && !isBlockedByDate) {
       slots.push(format(currentSlot, 'HH:mm'))
     }
 

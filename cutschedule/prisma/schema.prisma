@@ -26,6 +26,18 @@ model WorkingHours {
   isActive  Boolean @default(true)
 }
 
+model BlockedDate {
+  id        String   @id @default(cuid())
+  date      DateTime
+  startTime String?  // Optional - if null, whole day is blocked
+  endTime   String?  // Optional - if null, whole day is blocked
+  isFullDay Boolean  @default(false)
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
 model Appointment {
   id            String   @id @default(cuid())
   clientName    String

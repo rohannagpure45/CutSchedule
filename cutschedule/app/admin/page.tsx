@@ -275,17 +275,35 @@ export default function AdminDashboard() {
               <CardDescription>Common administrative tasks</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button className="h-16" variant="outline">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Button
+                  className="h-16"
+                  variant="outline"
+                  onClick={() => router.push('/admin/appointments')}
+                >
                   <div className="text-center">
                     <Calendar className="w-6 h-6 mx-auto mb-1" />
                     <p className="text-sm">View All Appointments</p>
                   </div>
                 </Button>
-                <Button className="h-16" variant="outline">
+                <Button
+                  className="h-16"
+                  variant="outline"
+                  onClick={() => router.push('/admin/working-hours')}
+                >
                   <div className="text-center">
                     <Clock className="w-6 h-6 mx-auto mb-1" />
                     <p className="text-sm">Manage Working Hours</p>
+                  </div>
+                </Button>
+                <Button
+                  className="h-16"
+                  variant="outline"
+                  onClick={() => router.push('/admin/blocked-dates')}
+                >
+                  <div className="text-center">
+                    <Calendar className="w-6 h-6 mx-auto mb-1" />
+                    <p className="text-sm">Blocked Dates</p>
                   </div>
                 </Button>
                 <Button className="h-16" variant="outline">
