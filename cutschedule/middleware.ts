@@ -6,15 +6,12 @@ export default withAuth(
     const token = req.nextauth.token
     const pathname = req.nextUrl.pathname
 
-    console.log('Middleware check:', {
-      pathname,
-      hasToken: !!token,
-      isAdmin: token?.isAdmin,
-      email: token?.email
-    })
-
     // Allow the login page to be accessed
     if (pathname === '/admin/login') {
+      // If user is already admin, redirect to dashboard
+      if (token?.isAdmin === true) {
+        return NextResponse.redirect(new URL('/admin', req.url))
+      }
       return NextResponse.next()
     }
 

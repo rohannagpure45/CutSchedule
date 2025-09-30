@@ -22,16 +22,19 @@ function LoginContent() {
     } else if (urlError) {
       setError('Authentication failed. Please try again.')
     }
+  }, [searchParams])
 
-    // Check if user is already logged in
+  useEffect(() => {
+    // Check if user is already logged in, but only once
     const checkSession = async () => {
       const session = await getSession()
       if (session?.user?.isAdmin) {
-        router.push('/admin')
+        // Use replace instead of push to avoid history issues
+        router.replace('/admin')
       }
     }
     checkSession()
-  }, [router, searchParams])
+  }, [])
 
   const handleGoogleSignIn = async () => {
     try {

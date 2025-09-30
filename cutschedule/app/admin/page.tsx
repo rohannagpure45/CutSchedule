@@ -33,13 +33,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (status === 'loading') return
 
-    if (!session?.user?.isAdmin) {
-      router.push('/admin/login')
-      return
+    // Middleware handles authentication, so we just fetch appointments
+    if (session?.user?.isAdmin) {
+      fetchAppointments()
     }
-
-    fetchAppointments()
-  }, [session, status, router])
+  }, [session, status])
 
   const fetchAppointments = async () => {
     try {
@@ -97,9 +95,6 @@ export default function AdminDashboard() {
     )
   }
 
-  if (!session?.user?.isAdmin) {
-    return null
-  }
 
   const todayAppointments = appointments.filter(apt =>
     apt.status === 'confirmed' && isToday(parseISO(apt.date))
@@ -119,7 +114,7 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center h-16">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">CutSchedule Admin</h1>
-              <p className="text-sm text-gray-600">Welcome back, {session.user.name}</p>
+              <p className="text-sm text-gray-600">Welcome back, {session?.user?.name || 'Admin'}</p>
             </div>
             <div className="flex items-center space-x-4">
               <Button variant="outline" size="sm">
