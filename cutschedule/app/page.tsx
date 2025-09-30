@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, CheckSquare, RotateCcw, Clock, MapPin, Phone } from "lucide-react"
+import { Calendar, CheckSquare, RotateCcw, MapPin, Phone } from "lucide-react"
 import { APP_CONFIG } from "@/lib/constants"
 
 // Test deployment with Root Directory set to cutschedule
@@ -11,7 +11,7 @@ export default function HomePage() {
     <div className="container mx-auto px-4 py-16">
       <div className="text-center max-w-4xl mx-auto">
         <h1 className="text-5xl font-bold mb-6">
-          Welcome to {APP_CONFIG.BARBER_NAME}
+          Neil's Barbershop
         </h1>
         <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
           Professional barber services with easy online booking, automated reminders,
@@ -75,7 +75,7 @@ export default function HomePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-3 gap-6 text-center">
+            <div className="grid md:grid-cols-2 gap-6 text-center">
               <div className="flex flex-col items-center space-y-2">
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                   <MapPin className="w-6 h-6 text-blue-600" />
@@ -90,18 +90,6 @@ export default function HomePage() {
                 </div>
                 <h3 className="font-semibold">Phone</h3>
                 <p className="text-sm text-muted-foreground">{APP_CONFIG.BARBER_PHONE}</p>
-              </div>
-
-              <div className="flex flex-col items-center space-y-2">
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-orange-600" />
-                </div>
-                <h3 className="font-semibold">Hours</h3>
-                <div className="text-sm text-muted-foreground">
-                  <p>Mon-Fri: 9:00 AM - 6:00 PM</p>
-                  <p>Sat: 9:00 AM - 5:00 PM</p>
-                  <p>Sun: 10:00 AM - 4:00 PM</p>
-                </div>
               </div>
             </div>
           </CardContent>
