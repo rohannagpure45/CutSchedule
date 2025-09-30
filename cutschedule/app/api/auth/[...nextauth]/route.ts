@@ -1,10 +1,8 @@
 import NextAuth from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
-import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from '@/lib/db'
 
 const handler = NextAuth({
-  adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -28,42 +26,9 @@ const handler = NextAuth({
         return false
       }
 
-      // Handle account linking for existing users
+      // Update admin record in database
       if (account?.provider === 'google') {
         try {
-          // Check if user exists
-          const existingUser = await prisma.user.findUnique({
-            where: { email: user.email! },
-            include: { accounts: true }
-          })
-
-          if (existingUser) {
-            // Check if this Google account is already linked
-            const existingAccount = existingUser.accounts.find(
-              acc => acc.provider === 'google' && acc.providerAccountId === account.providerAccountId
-            )
-
-            if (!existingAccount) {
-              // Link the Google account to existing user
-              await prisma.account.create({
-                data: {
-                  userId: existingUser.id,
-                  type: account.type,
-                  provider: account.provider,
-                  providerAccountId: account.providerAccountId,
-                  refresh_token: account.refresh_token,
-                  access_token: account.access_token,
-                  expires_at: account.expires_at,
-                  token_type: account.token_type,
-                  scope: account.scope,
-                  id_token: account.id_token,
-                  session_state: account.session_state,
-                }
-              })
-            }
-          }
-
-          // Check if admin exists, if not create it
           const admin = await prisma.admin.findUnique({
             where: { email: user.email! },
           })
@@ -77,16 +42,18 @@ const handler = NextAuth({
                 name: user.name || 'Admin User',
               },
             })
-          } else if (admin.googleId !== account.providerAccountId && admin.googleId === 'pending-first-login') {
-            // Update Google ID if it's the first login
+          } else if (admin.googleId === 'pending-first-login') {
+            // Update Google ID on first login
             await prisma.admin.update({
               where: { email: user.email! },
-              data: { googleId: account.providerAccountId },
+              data: {
+                googleId: account.providerAccountId,
+                name: user.name || admin.name,
+              },
             })
           }
         } catch (error) {
-          console.error('Error during sign in:', error)
-          return false
+          console.error('Error updating admin record:', error)
         }
       }
 
@@ -103,33 +70,29 @@ const handler = NextAuth({
       }
       return baseUrl + '/admin'
     },
-    async session({ session, token, user }) {
-      // Add admin flag to session
-      if (session.user?.email) {
-        const admin = await prisma.admin.findUnique({
-          where: { email: session.user.email },
-        })
-
-        return {
-          ...session,
-          user: {
-            ...session.user,
-            isAdmin: !!admin,
-            adminId: admin?.id,
-          },
-        }
+    async session({ session, token }) {
+      // Add admin flag to session from JWT token
+      if (token && session.user) {
+        session.user.isAdmin = token.isAdmin as boolean
+        session.user.adminId = token.adminId as string
       }
-
       return session
     },
     async jwt({ token, account, user }) {
-      // Persist additional user info in JWT
+      // Initial sign in
       if (account && user) {
         token.isAdmin = user.email === process.env.ADMIN_EMAIL
         token.adminId = user.id
+        token.email = user.email
         token.accessToken = account.access_token
         token.refreshToken = account.refresh_token
       }
+
+      // Subsequent requests - ensure admin flag is set
+      if (token.email === process.env.ADMIN_EMAIL) {
+        token.isAdmin = true
+      }
+
       return token
     },
   },
@@ -139,7 +102,8 @@ const handler = NextAuth({
     signOut: '/admin/login',
   },
   session: {
-    strategy: 'database',
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === 'development',
