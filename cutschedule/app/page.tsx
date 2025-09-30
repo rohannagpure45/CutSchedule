@@ -11,7 +11,7 @@ export default function HomePage() {
     <div className="container mx-auto px-4 py-16">
       <div className="text-center max-w-4xl mx-auto">
         <h1 className="text-5xl font-bold mb-6">
-          Neil's Barbershop
+          Neil&apos;s Barbershop
         </h1>
         <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
           Professional barber services with easy online booking, automated reminders,
