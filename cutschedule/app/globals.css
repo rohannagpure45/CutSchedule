@@ -54,3 +54,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide outside month days in calendar */
+.rdp-outside {
+  visibility: hidden !important;
+}
