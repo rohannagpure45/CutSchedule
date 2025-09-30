@@ -5,7 +5,7 @@ export const APP_CONFIG = {
   MAX_ADVANCE_BOOKING_DAYS: parseInt(process.env.MAX_ADVANCE_DAYS || '25'),
   BARBER_NAME: process.env.NEXT_PUBLIC_BARBER_NAME || 'CutSchedule Barbershop',
   BARBER_ADDRESS: process.env.BARBER_ADDRESS || '123 Main St, City, State 12345',
-  BARBER_PHONE: process.env.BARBER_PHONE || '+1234567890',
+  BARBER_PHONE: process.env.NEXT_PUBLIC_BARBER_PHONE,
   BOOKING_URL: process.env.BOOKING_URL || 'http://localhost:3001',
 } as const
 

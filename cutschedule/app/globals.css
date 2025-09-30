@@ -55,7 +55,28 @@
   }
 }
 
-/* Hide outside month days in calendar */
+/* Make outside month days very subtle like Google Calendar */
 .rdp-outside {
-  visibility: hidden !important;
+  opacity: 0.3 !important;
+  color: #9ca3af !important;
+}
+
+/* Force equal width for calendar header cells to align with day cells */
+.rdp-weekday {
+  width: 2.25rem !important;
+  min-width: 2.25rem !important;
+  max-width: 2.25rem !important;
+}
+
+/* Force calendar rows to use grid layout for proper alignment */
+.rdp-weekdays,
+.rdp-week {
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr) !important;
+  width: 100% !important;
+}
+
+.rdp-day_button {
+  width: 2.25rem !important;
+  height: 2.25rem !important;
 }
