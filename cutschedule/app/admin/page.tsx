@@ -31,13 +31,10 @@ export default function AdminDashboard() {
   })
 
   useEffect(() => {
-    if (status === 'loading') return
-
-    // Middleware handles authentication, so we just fetch appointments
-    if (session?.user?.isAdmin) {
-      fetchAppointments()
-    }
-  }, [session, status])
+    // Don't wait for session, just fetch appointments immediately
+    // Middleware has already verified we're admin
+    fetchAppointments()
+  }, [])
 
   const fetchAppointments = async () => {
     try {
@@ -87,7 +84,7 @@ export default function AdminDashboard() {
     return format(aptDate, 'MMM d, yyyy')
   }
 
-  if (status === 'loading' || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />

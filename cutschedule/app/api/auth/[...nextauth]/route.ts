@@ -76,6 +76,16 @@ const handler = NextAuth({
         session.user.isAdmin = token.isAdmin as boolean
         session.user.adminId = token.adminId as string
       }
+
+      // Debug logging in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Session callback:', {
+          email: session.user?.email,
+          isAdmin: session.user?.isAdmin,
+          tokenIsAdmin: token?.isAdmin
+        })
+      }
+
       return session
     },
     async jwt({ token, account, user }) {
