@@ -298,7 +298,11 @@ export default function AdminDashboard() {
                     <p className="text-sm">Blocked Dates</p>
                   </div>
                 </Button>
-                <Button className="h-16" variant="outline">
+                <Button
+                  className="h-16"
+                  variant="outline"
+                  onClick={() => router.push('/admin/sms-logs')}
+                >
                   <div className="text-center">
                     <Phone className="w-6 h-6 mx-auto mb-1" />
                     <p className="text-sm">SMS Logs</p>

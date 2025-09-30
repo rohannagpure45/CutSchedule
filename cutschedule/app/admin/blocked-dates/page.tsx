@@ -45,15 +45,10 @@ export default function BlockedDatesPage() {
   const [reason, setReason] = useState('')
 
   useEffect(() => {
-    if (status === 'loading') return
-
-    if (!session?.user?.isAdmin) {
-      router.push('/admin/login')
-      return
-    }
-
+    // Don't wait for session, just fetch blocked dates immediately
+    // Middleware has already verified we're admin
     fetchBlockedDates()
-  }, [session, status, router])
+  }, [])
 
   const fetchBlockedDates = async () => {
     try {
@@ -172,7 +167,7 @@ export default function BlockedDatesPage() {
     return blockedDates.map(bd => parseISO(bd.date))
   }
 
-  if (status === 'loading' || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
