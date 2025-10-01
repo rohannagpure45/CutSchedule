@@ -145,10 +145,6 @@ export default function WorkingHoursPage() {
     )
   }
 
-  if (!session?.user?.isAdmin) {
-    return null
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-4xl mx-auto">
