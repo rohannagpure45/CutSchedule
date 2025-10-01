@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ArrowLeft, Search, Calendar, Phone, User, Clock, X, CheckCircle, XCircle } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, startOfDay } from 'date-fns'
 import { useToast } from '@/hooks/use-toast'
 
 interface Appointment {
@@ -72,9 +72,13 @@ export default function AppointmentsPage() {
       const response = await fetch('/api/appointments')
       if (response.ok) {
         const data = await response.json()
-        setAppointments(data.sort((a: Appointment, b: Appointment) =>
+        const sortedAppointments = data.sort((a: Appointment, b: Appointment) =>
           new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-        ))
+        )
+        setAppointments(sortedAppointments)
+
+        // Auto-complete past appointments
+        await autoCompletePastAppointments(sortedAppointments)
       } else {
         toast({
           title: 'Error',
@@ -91,6 +95,49 @@ export default function AppointmentsPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const autoCompletePastAppointments = async (appointmentsList: Appointment[]) => {
+    const today = startOfDay(new Date())
+    const pastConfirmedAppointments = appointmentsList.filter(apt => {
+      const appointmentDate = startOfDay(parseISO(apt.date))
+      return apt.status === 'confirmed' && appointmentDate < today
+    })
+
+    if (pastConfirmedAppointments.length === 0) return
+
+    // Update each past appointment to completed
+    const updatePromises = pastConfirmedAppointments.map(async (apt) => {
+      try {
+        const response = await fetch(`/api/appointments/${apt.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'completed' })
+        })
+
+        if (response.ok) {
+          return { id: apt.id, success: true }
+        }
+        return { id: apt.id, success: false }
+      } catch (error) {
+        console.error(`Error auto-completing appointment ${apt.id}:`, error)
+        return { id: apt.id, success: false }
+      }
+    })
+
+    const results = await Promise.all(updatePromises)
+    const successCount = results.filter(r => r.success).length
+
+    if (successCount > 0) {
+      // Update local state
+      setAppointments(prev =>
+        prev.map(apt =>
+          results.find(r => r.id === apt.id && r.success)
+            ? { ...apt, status: 'completed' }
+            : apt
+        )
+      )
     }
   }
 
