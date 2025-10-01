@@ -27,6 +27,7 @@ export function BookingForm({ onSubmit, className }: BookingFormProps) {
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [selectedTime, setSelectedTime] = useState<string>()
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
+  const [blockedDates, setBlockedDates] = useState<Date[]>([])
   const [loading, setLoading] = useState(false)
   const [slotsLoading, setSlotsLoading] = useState(false)
 
@@ -42,6 +43,24 @@ export function BookingForm({ onSubmit, className }: BookingFormProps) {
 
   // Watch form values for validation
   const watchedValues = watch()
+
+  // Fetch blocked dates on mount
+  useEffect(() => {
+    const fetchBlockedDates = async () => {
+      try {
+        const response = await fetch('/api/availability/blocked-dates')
+        if (response.ok) {
+          const data = await response.json()
+          // Convert date strings to Date objects
+          const dates = data.map((item: any) => new Date(item.date))
+          setBlockedDates(dates)
+        }
+      } catch (error) {
+        console.error('Failed to fetch blocked dates:', error)
+      }
+    }
+    fetchBlockedDates()
+  }, [])
 
   // Fetch available time slots when date changes
   useEffect(() => {
@@ -156,6 +175,7 @@ export function BookingForm({ onSubmit, className }: BookingFormProps) {
         <DatePicker
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
+          blockedDates={blockedDates}
           className={cn(
             "transition-opacity",
             currentStep !== 'date' && selectedDate && "opacity-75"

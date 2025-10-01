@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Calendar } from "@/components/ui/calendar"
+import { SimpleCalendar } from "@/components/ui/simple-calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { addDays, format, isSameDay } from "date-fns"
 import { APP_CONFIG } from "@/lib/constants"
@@ -10,6 +10,7 @@ interface DatePickerProps {
   selectedDate?: Date
   onDateSelect: (date: Date) => void
   workingDays?: number[] // Array of working days (0-6, Sunday-Saturday)
+  blockedDates?: Date[] // Array of blocked dates
   className?: string
 }
 
@@ -17,6 +18,7 @@ export function DatePicker({
   selectedDate,
   onDateSelect,
   workingDays = [1, 2, 3, 4, 5, 6], // Default: Monday-Saturday
+  blockedDates = [],
   className
 }: DatePickerProps) {
   const today = new Date()
@@ -33,6 +35,11 @@ export function DatePicker({
     const dayOfWeek = date.getDay()
     if (!workingDays.includes(dayOfWeek)) return true
 
+    // Disable blocked dates
+    if (blockedDates.some(blockedDate => isSameDay(blockedDate, date))) {
+      return true
+    }
+
     return false
   }
 
@@ -42,12 +49,10 @@ export function DatePicker({
         <CardTitle className="text-lg">Select Date</CardTitle>
       </CardHeader>
       <CardContent>
-        <Calendar
-          mode="single"
+        <SimpleCalendar
           selected={selectedDate}
-          onSelect={(date) => date && onDateSelect(date)}
+          onSelect={onDateSelect}
           disabled={isDateDisabled}
-          initialFocus
           className="rounded-md border"
         />
         {selectedDate && (

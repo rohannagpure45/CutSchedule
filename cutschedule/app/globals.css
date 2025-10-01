@@ -80,3 +80,15 @@
   width: 2.25rem !important;
   height: 2.25rem !important;
 }
+
+/* Selected date styling */
+.rdp-day_button[aria-selected="true"] {
+  background-color: #3b82f6 !important;
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+.rdp-day_button[aria-selected="true"]:hover {
+  background-color: #2563eb !important;
+  color: white !important;
+}
