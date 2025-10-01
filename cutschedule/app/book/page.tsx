@@ -97,7 +97,7 @@ export default function BookingPage() {
                     asChild
                     className="w-full"
                   >
-                    <Link href={`/manage-appointment${failedPhoneNumber ? `?phone=${encodeURIComponent(failedPhoneNumber)}` : ''}`}>
+                    <Link href={failedPhoneNumber ? `/manage-appointment?phone=${encodeURIComponent(failedPhoneNumber)}` : '/manage-appointment'}>
                       View/Manage Appointment
                     </Link>
                   </Button>
