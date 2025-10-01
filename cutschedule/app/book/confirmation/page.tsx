@@ -21,7 +21,7 @@ interface Appointment {
 
 function ConfirmationContent() {
   const searchParams = useSearchParams()
-  const appointmentId = searchParams.get('id')
+  const appointmentId = searchParams?.get('id') || null
   const [appointment, setAppointment] = useState<Appointment | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
@@ -52,16 +52,25 @@ function ConfirmationContent() {
   }
 
   const formatDateTime = (dateStr: string, timeStr: string) => {
-    const date = new Date(`${dateStr}T${timeStr}`)
+    // Handle both string times and Date objects
+    let date: Date
+    if (typeof timeStr === 'string' && timeStr.includes(':')) {
+      // timeStr is a time string like "14:00"
+      date = new Date(`${dateStr}T${timeStr}`)
+    } else {
+      // timeStr is actually a Date object stringified, use startTime directly
+      date = new Date(timeStr)
+    }
+
     return {
       date: format(date, 'EEEE, MMMM d, yyyy'),
       time: format(date, 'h:mm a')
     }
   }
 
-  const formatEndTime = (startTimeStr: string) => {
-    const startTime = new Date(`2000-01-01T${startTimeStr}`)
-    const endTime = new Date(startTime.getTime() + 45 * 60000) // Add 45 minutes
+  const formatEndTime = (endTimeStr: string) => {
+    // endTimeStr is actually a Date object stringified
+    const endTime = new Date(endTimeStr)
     return format(endTime, 'h:mm a')
   }
 
@@ -100,7 +109,7 @@ function ConfirmationContent() {
   }
 
   const { date, time } = formatDateTime(appointment.date, appointment.startTime)
-  const endTime = formatEndTime(appointment.startTime)
+  const endTime = formatEndTime(appointment.endTime)
 
   return (
     <div className="container mx-auto px-4 py-8">
