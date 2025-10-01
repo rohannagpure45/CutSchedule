@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Calendar } from '@/components/ui/calendar'
+import { SimpleCalendar } from '@/components/ui/simple-calendar'
 import { ArrowLeft, Plus, CalendarOff, Trash2, Clock } from 'lucide-react'
 import { format, parseISO, isFuture } from 'date-fns'
 import { useToast } from '@/hooks/use-toast'
@@ -210,20 +210,9 @@ export default function BlockedDatesPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Calendar
-                mode="single"
+              <SimpleCalendar
                 selected={undefined}
                 className="rounded-md border"
-                modifiers={{
-                  blocked: getBlockedDatesForCalendar()
-                }}
-                modifiersStyles={{
-                  blocked: {
-                    backgroundColor: '#FEE2E2',
-                    color: '#991B1B',
-                    fontWeight: 'bold'
-                  }
-                }}
                 disabled={(date) => date < new Date()}
               />
             </CardContent>
@@ -296,8 +285,7 @@ export default function BlockedDatesPage() {
           <div className="space-y-4">
             <div>
               <Label>Select Date</Label>
-              <Calendar
-                mode="single"
+              <SimpleCalendar
                 selected={selectedDate}
                 onSelect={setSelectedDate}
                 className="rounded-md border mt-2"

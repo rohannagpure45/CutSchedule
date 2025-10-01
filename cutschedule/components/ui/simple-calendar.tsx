@@ -142,7 +142,7 @@ export function SimpleCalendar({
                 "h-9 w-9 text-sm rounded-md transition-colors",
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-                isSelected && "bg-blue-500 text-white font-bold hover:bg-blue-600 hover:text-white",
+                isSelected && "bg-blue-700 text-white font-bold hover:bg-blue-800 hover:text-white",
                 isDisabled && "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-50 hover:bg-muted/50 hover:text-muted-foreground",
                 !isSelected && !isDisabled && "hover:bg-accent"
               )}
