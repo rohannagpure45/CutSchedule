@@ -51,26 +51,36 @@ function ConfirmationContent() {
     }
   }
 
-  const formatDateTime = (dateStr: string, timeStr: string) => {
-    // Handle both string times and Date objects
-    let date: Date
-    if (typeof timeStr === 'string' && timeStr.includes(':')) {
-      // timeStr is a time string like "14:00"
-      date = new Date(`${dateStr}T${timeStr}`)
-    } else {
-      // timeStr is actually a Date object stringified, use startTime directly
-      date = new Date(timeStr)
+  const formatDateTime = (dateStr: string, startTimeStr: string) => {
+    // startTimeStr is an ISO date string from the API (e.g., "2025-10-17T18:00:00.000Z")
+    // We use it directly to create the Date object
+    const startTime = new Date(startTimeStr)
+
+    // Validate the date is valid
+    if (isNaN(startTime.getTime())) {
+      console.error('Invalid date:', { dateStr, startTimeStr })
+      return {
+        date: 'Invalid Date',
+        time: 'Invalid Time'
+      }
     }
 
     return {
-      date: format(date, 'EEEE, MMMM d, yyyy'),
-      time: format(date, 'h:mm a')
+      date: format(startTime, 'EEEE, MMMM d, yyyy'),
+      time: format(startTime, 'h:mm a')
     }
   }
 
   const formatEndTime = (endTimeStr: string) => {
-    // endTimeStr is actually a Date object stringified
+    // endTimeStr is an ISO date string from the API (e.g., "2025-10-17T18:45:00.000Z")
     const endTime = new Date(endTimeStr)
+
+    // Validate the date is valid
+    if (isNaN(endTime.getTime())) {
+      console.error('Invalid end time:', endTimeStr)
+      return 'Invalid Time'
+    }
+
     return format(endTime, 'h:mm a')
   }
 
