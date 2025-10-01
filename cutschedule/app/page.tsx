@@ -25,6 +25,14 @@ export default function HomePage() {
             <Link href="/book">View Availability</Link>
           </Button>
         </div>
+        <div className="mt-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            Already have an appointment?{" "}
+            <Link href="/manage-appointment" className="text-primary hover:underline font-medium">
+              Manage it here
+            </Link>
+          </p>
+        </div>
       </div>
 
       <div className="mt-16 grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">

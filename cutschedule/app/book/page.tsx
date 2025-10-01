@@ -15,6 +15,7 @@ export default function BookingPage() {
   const [bookingStatus, setBookingStatus] = useState<'form' | 'success' | 'error'>('form')
   const [errorMessage, setErrorMessage] = useState<string>("")
   const [appointmentId, setAppointmentId] = useState<string>("")
+  const [failedPhoneNumber, setFailedPhoneNumber] = useState<string>("")
 
   const handleBookingSubmit = async (data: AppointmentBookingData) => {
     try {
@@ -28,6 +29,8 @@ export default function BookingPage() {
 
       if (!response.ok) {
         const errorData = await response.json()
+        // Store phone number if booking fails
+        setFailedPhoneNumber(data.phoneNumber)
         throw new Error(errorData.error || 'Failed to book appointment')
       }
 
@@ -69,22 +72,56 @@ export default function BookingPage() {
   }
 
   if (bookingStatus === 'error') {
+    const hasExistingAppointment = errorMessage.toLowerCase().includes('already have') ||
+                                   errorMessage.toLowerCase().includes('upcoming appointment')
+
     return (
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-md mx-auto">
           <Card className="text-center">
             <CardContent className="pt-6">
-              <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-              <h1 className="text-2xl font-bold mb-2">Booking Failed</h1>
-              <p className="text-muted-foreground mb-4">
-                {errorMessage}
+              <AlertCircle className={`w-16 h-16 mx-auto mb-4 ${hasExistingAppointment ? 'text-blue-500' : 'text-red-500'}`} />
+              <h1 className="text-2xl font-bold mb-2">
+                {hasExistingAppointment ? 'Already Have an Appointment' : 'Booking Failed'}
+              </h1>
+              <p className="text-muted-foreground mb-6">
+                {hasExistingAppointment
+                  ? 'You already have an upcoming appointment scheduled. Would you like to view or manage it?'
+                  : errorMessage
+                }
               </p>
-              <Button onClick={() => setBookingStatus('form')} className="mr-2">
-                Try Again
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/">Go Home</Link>
-              </Button>
+
+              {hasExistingAppointment ? (
+                <div className="space-y-2">
+                  <Button
+                    asChild
+                    className="w-full"
+                  >
+                    <Link href={`/manage-appointment${failedPhoneNumber ? `?phone=${encodeURIComponent(failedPhoneNumber)}` : ''}`}>
+                      View/Manage Appointment
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setBookingStatus('form')}
+                    className="w-full"
+                  >
+                    Back to Booking
+                  </Button>
+                  <Button variant="ghost" asChild className="w-full">
+                    <Link href="/">Go Home</Link>
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Button onClick={() => setBookingStatus('form')} className="mr-2">
+                    Try Again
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/">Go Home</Link>
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

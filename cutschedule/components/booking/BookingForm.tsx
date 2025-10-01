@@ -18,14 +18,17 @@ import { cn } from "@/lib/utils"
 interface BookingFormProps {
   onSubmit: (data: AppointmentBookingData) => Promise<void>
   className?: string
+  initialData?: Partial<AppointmentBookingData>
 }
 
 type BookingStep = 'date' | 'time' | 'details' | 'confirm'
 
-export function BookingForm({ onSubmit, className }: BookingFormProps) {
+export function BookingForm({ onSubmit, className, initialData }: BookingFormProps) {
   const [currentStep, setCurrentStep] = useState<BookingStep>('date')
-  const [selectedDate, setSelectedDate] = useState<Date>()
-  const [selectedTime, setSelectedTime] = useState<string>()
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    initialData?.date ? new Date(initialData.date) : undefined
+  )
+  const [selectedTime, setSelectedTime] = useState<string | undefined>(initialData?.time)
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [blockedDates, setBlockedDates] = useState<Date[]>([])
   const [loading, setLoading] = useState(false)
@@ -38,7 +41,8 @@ export function BookingForm({ onSubmit, className }: BookingFormProps) {
     setValue,
     watch
   } = useForm<AppointmentBookingData>({
-    resolver: zodResolver(appointmentBookingSchema)
+    resolver: zodResolver(appointmentBookingSchema),
+    defaultValues: initialData
   })
 
   // Watch form values for validation
