@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, Calendar, Clock, MapPin, Phone, MessageSquare, ArrowLeft } from "lucide-react"
+import { CheckCircle, Calendar, Clock, MapPin, Phone, MessageSquare, ArrowLeft, XCircle } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { APP_CONFIG } from "@/lib/constants"
@@ -238,7 +238,7 @@ function ConfirmationContent() {
                 <div>
                   <p className="font-medium">Need to Reschedule?</p>
                   <p className="text-muted-foreground">
-                    Use the link in your SMS confirmation or call us directly
+                    Use the buttons below to reschedule or cancel your appointment
                   </p>
                 </div>
               </div>
@@ -246,8 +246,31 @@ function ConfirmationContent() {
           </CardContent>
         </Card>
 
+        {/* Manage Appointment Buttons */}
+        <div className="mt-8 space-y-4">
+          <Card className="bg-muted/50">
+            <CardContent className="pt-6">
+              <h3 className="font-semibold mb-4 text-center">Manage Your Appointment</h3>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button asChild className="flex-1">
+                  <Link href={`/manage-appointment/reschedule?id=${appointment.id}`}>
+                    <Clock className="w-4 h-4 mr-2" />
+                    Reschedule Appointment
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
+                  <Link href={`/manage-appointment?phone=${encodeURIComponent(appointment.phoneNumber)}`}>
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Cancel Appointment
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Action Buttons */}
-        <div className="mt-8 flex gap-4 justify-center">
+        <div className="mt-6 flex gap-4 justify-center">
           <Button asChild>
             <Link href="/">Book Another Appointment</Link>
           </Button>
