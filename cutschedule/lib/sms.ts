@@ -19,11 +19,11 @@ const SMS_TEMPLATES: SMSTemplate = {
 
   reminder_1hour: `Hi {clientName}! Your haircut appointment with Neil starts in 1 hour at {time}. We're located at 111 Gainsborough Street. See you soon!`,
 
-  reschedule_2weeks: `Hi {clientName}! It's been 2 weeks since your last haircut with Neil. Ready for another appointment? Book online at cutschedule.com or reply to this message.`,
+  reschedule_2weeks: `Hi {clientName}! It's been 2 weeks since your last haircut with Neil. Ready for another appointment? Book online at https://cut-schedule-ck4d12342.vercel.app or reply to this message.`,
 
-  reschedule_3weeks: `Hi {clientName}! Ready for your next haircut? Book your appointment with Neil at cutschedule.com. We're here when you're ready!`,
+  reschedule_3weeks: `Hi {clientName}! Ready for your next haircut? Book your appointment with Neil at https://cut-schedule-ck4d12342.vercel.app. We're here when you're ready!`,
 
-  cancellation: `Hi {clientName}! Your haircut appointment for {date} at {time} has been cancelled. Book a new appointment anytime at cutschedule.com.`
+  cancellation: `Hi {clientName}! Your haircut appointment for {date} at {time} has been cancelled. Book a new appointment anytime at https://cut-schedule-ck4d12342.vercel.app`
 }
 
 export interface SMSData {
