@@ -20,9 +20,12 @@ export function parseTime(timeString: string): Date {
 }
 
 export function combineDateTime(dateString: string, timeString: string): Date {
-  const date = new Date(dateString)
+  // Parse the date string as YYYY-MM-DD
+  const [year, month, day] = dateString.split('-').map(Number)
   const [hours, minutes] = timeString.split(':').map(Number)
-  date.setHours(hours, minutes, 0, 0)
+
+  // Create date in local timezone to match user's timezone
+  const date = new Date(year, month - 1, day, hours, minutes, 0, 0)
   return date
 }
 
