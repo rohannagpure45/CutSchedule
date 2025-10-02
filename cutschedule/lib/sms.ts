@@ -13,7 +13,7 @@ export interface SMSTemplate {
 }
 
 const SMS_TEMPLATES: SMSTemplate = {
-  confirmation: `Hi {clientName}! Your haircut appointment with Neil is confirmed for {date} at {time}. Located at 111 Gainsborough Street. Reply STOP to opt out.`,
+  confirmation: `Hi {clientName}! Your haircut appointment with Neil is confirmed for {date} at {time}. Located at 111 Gainsborough Street. To reschedule: https://cut-schedule-ck4d12342.vercel.app/manage-appointment/reschedule?id={appointmentId} Reply STOP to opt out.`,
 
   reminder_1day: `Hi {clientName}! Reminder: You have a haircut appointment tomorrow ({date}) at {time} with Neil at 111 Gainsborough Street. See you soon!`,
 
@@ -44,6 +44,7 @@ export async function sendSMS(
     message = message.replace('{clientName}', data.clientName)
     message = message.replace('{date}', data.date)
     message = message.replace('{time}', data.time)
+    message = message.replace('{appointmentId}', data.appointmentId || '')
 
     console.log(`Sending ${messageType} SMS to ${phoneNumber}:`, message)
 
