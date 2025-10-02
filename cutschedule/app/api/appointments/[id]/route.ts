@@ -4,7 +4,7 @@ import { appointmentUpdateSchema } from '@/lib/utils/validation'
 import { combineDateTime } from '@/lib/utils/dates'
 import { addMinutes, startOfDay, endOfDay } from 'date-fns'
 import { APP_CONFIG } from '@/lib/constants'
-import { sendCancellationSMS } from '@/lib/sms'
+import { sendCancellationSMS, sendConfirmationSMS } from '@/lib/sms'
 import { deleteCalendarEvent, updateCalendarEvent } from '@/lib/calendar'
 
 export async function GET(
@@ -163,7 +163,18 @@ export async function PATCH(
         }
       }
 
-      // TODO: Send reschedule SMS notification
+      // Send reschedule confirmation SMS
+      try {
+        const smsResult = await sendConfirmationSMS(updatedAppointment)
+        if (smsResult.success) {
+          console.log('Reschedule confirmation SMS sent successfully:', smsResult.messageId)
+        } else {
+          console.error('Failed to send reschedule confirmation SMS:', smsResult.error)
+        }
+      } catch (error) {
+        console.error('Error sending reschedule confirmation SMS:', error)
+        // Don't fail the reschedule if SMS fails
+      }
 
       return NextResponse.json(updatedAppointment)
     }

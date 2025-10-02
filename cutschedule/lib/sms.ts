@@ -50,7 +50,7 @@ export async function sendSMS(
     // Send SMS via Twilio
     const twilioMessage = await client.messages.create({
       body: message,
-      from: process.env.BARBER_PHONE,
+      messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID,
       to: phoneNumber,
     })
 
