@@ -70,6 +70,13 @@ export interface CalendarEvent {
     email?: string
     displayName?: string
   }>
+  reminders?: {
+    useDefault: boolean
+    overrides?: Array<{
+      method: string
+      minutes: number
+    }>
+  }
 }
 
 export async function createCalendarEvent(
@@ -95,6 +102,12 @@ export async function createCalendarEvent(
         dateTime: appointment.endTime.toISOString(),
         timeZone: 'America/New_York',
       },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'popup', minutes: 10 }
+        ]
+      }
     }
 
     console.log('Creating calendar event:', event)
@@ -144,6 +157,12 @@ export async function updateCalendarEvent(
         dateTime: appointment.endTime.toISOString(),
         timeZone: 'America/New_York',
       },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'popup', minutes: 10 }
+        ]
+      }
     }
 
     console.log('Updating calendar event:', eventId, event)
