@@ -13,7 +13,7 @@ export interface SMSTemplate {
 }
 
 const SMS_TEMPLATES: SMSTemplate = {
-  confirmation: `Hi {clientName}! Your haircut appointment with Neil at CutSchedule is confirmed for {date} at {time}. Located at 111 Gainsborough Street. Reply STOP to opt out.`,
+  confirmation: `Hi {clientName}! Your haircut appointment with Neil is confirmed for {date} at {time}. Located at 111 Gainsborough Street. Reply STOP to opt out.`,
 
   reminder_1day: `Hi {clientName}! Reminder: You have a haircut appointment tomorrow ({date}) at {time} with Neil at 111 Gainsborough Street. See you soon!`,
 
