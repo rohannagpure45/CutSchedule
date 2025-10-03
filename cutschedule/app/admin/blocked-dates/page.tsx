@@ -214,6 +214,7 @@ export default function BlockedDatesPage() {
                 selected={undefined}
                 className="rounded-md border"
                 disabled={(date) => date < new Date()}
+                blockedDates={getBlockedDatesForCalendar()}
               />
             </CardContent>
           </Card>
