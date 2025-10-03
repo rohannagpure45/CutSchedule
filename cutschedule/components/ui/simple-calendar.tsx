@@ -9,6 +9,7 @@ interface SimpleCalendarProps {
   selected?: Date
   onSelect?: (date: Date) => void
   disabled?: (date: Date) => boolean
+  blockedDates?: Date[]
   className?: string
 }
 
@@ -16,6 +17,7 @@ export function SimpleCalendar({
   selected,
   onSelect,
   disabled,
+  blockedDates = [],
   className
 }: SimpleCalendarProps) {
   const [currentMonth, setCurrentMonth] = React.useState(
@@ -84,6 +86,10 @@ export function SimpleCalendar({
     )
   }
 
+  const isBlocked = (date: Date) => {
+    return blockedDates.some(blockedDate => isSameDay(date, blockedDate))
+  }
+
   const days = generateCalendarDays()
 
   return (
@@ -132,6 +138,7 @@ export function SimpleCalendar({
 
           const isSelected = isSameDay(date, selected || null)
           const isDisabled = disabled ? disabled(date) : false
+          const isDateBlocked = isBlocked(date)
 
           return (
             <button
@@ -144,7 +151,8 @@ export function SimpleCalendar({
                 "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
                 isSelected && "bg-blue-700 text-white font-bold hover:bg-blue-800 hover:text-white",
                 isDisabled && "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-50 hover:bg-muted/50 hover:text-muted-foreground",
-                !isSelected && !isDisabled && "hover:bg-accent"
+                isDateBlocked && !isSelected && "bg-red-100 text-red-700 font-semibold hover:bg-red-200 hover:text-red-800",
+                !isSelected && !isDisabled && !isDateBlocked && "hover:bg-accent"
               )}
             >
               {date.getDate()}
