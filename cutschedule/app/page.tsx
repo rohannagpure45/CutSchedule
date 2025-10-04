@@ -22,7 +22,7 @@ export default function HomePage() {
             <Link href="/book">Book Appointment</Link>
           </Button>
           <Button variant="outline" size="lg" className="w-full sm:w-auto" asChild>
-            <Link href="/book">View Availability</Link>
+            <Link href="/gallery">View Gallery</Link>
           </Button>
         </div>
         <div className="mt-4 text-center">

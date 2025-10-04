@@ -133,12 +133,17 @@ export default function BookingPage() {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
-        <Button variant="ghost" asChild className="mb-4">
-          <Link href="/">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
-          </Link>
-        </Button>
+        <div className="flex justify-between items-center mb-4">
+          <Button variant="ghost" asChild>
+            <Link href="/">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Home
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/gallery">View Gallery</Link>
+          </Button>
+        </div>
 
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-2">Book Your Appointment</h1>
