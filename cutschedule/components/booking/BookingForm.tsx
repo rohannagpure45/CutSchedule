@@ -55,12 +55,14 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
         const response = await fetch('/api/available-slots')
         if (response.ok) {
           const data = await response.json()
-          // Convert date strings to Date objects and get unique dates
-          const uniqueDates = Array.from(
-            new Set<string>(
-              data.map((item: any) => new Date(item.date).toDateString())
-            )
-          ).map((dateStr) => new Date(dateStr))
+          // Convert server ISO dates to local date-only and get unique dates
+          const dateSet = new Set<number>()
+          data.forEach((item: any) => {
+            const d = new Date(item.date)
+            const local = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+            dateSet.add(local.getTime())
+          })
+          const uniqueDates = Array.from(dateSet).map((ts) => new Date(ts))
           setAvailableDates(uniqueDates)
         }
       } catch (error) {

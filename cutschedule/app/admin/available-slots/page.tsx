@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/dialog'
 import { SimpleCalendar } from '@/components/ui/simple-calendar'
 import { ArrowLeft, Plus, Calendar, Trash2, Clock } from 'lucide-react'
-import { format, parseISO, isFuture, startOfToday } from 'date-fns'
+import { format, parseISO, startOfToday } from 'date-fns'
+import { APP_CONFIG } from '@/lib/constants'
 import { useToast } from '@/hooks/use-toast'
 
 interface AvailableSlot {
@@ -40,6 +41,7 @@ export default function AvailableSlotsPage() {
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('18:00')
   const [reason, setReason] = useState('')
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   useEffect(() => {
     // Don't wait for session, just fetch available slots immediately
@@ -52,10 +54,15 @@ export default function AvailableSlotsPage() {
       const response = await fetch('/api/available-slots')
       if (response.ok) {
         const data = await response.json()
-        setAvailableSlots(data.filter((slot: AvailableSlot) =>
-          isFuture(parseISO(slot.date)) ||
-          format(parseISO(slot.date), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-        ))
+        const todayStart = startOfToday()
+        const toLocalDateOnly = (iso: string) => {
+          const d = new Date(iso)
+          return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+        }
+        setAvailableSlots(
+          data
+            .filter((slot: AvailableSlot) => toLocalDateOnly(slot.date) >= todayStart)
+        )
       } else {
         toast({
           title: 'Error',
@@ -167,8 +174,46 @@ export default function AvailableSlotsPage() {
     setReason('')
   }
 
+  const handleBulkCreate = async () => {
+    setBulkLoading(true)
+    try {
+      const response = await fetch('/api/available-slots/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        toast({
+          title: 'Bulk slots created',
+          description: `Created ${data.created ?? 0} time slot${(data.created ?? 0) === 1 ? '' : 's'}`
+        })
+        fetchAvailableSlots()
+      } else {
+        const err = await response.json().catch(() => ({}))
+        toast({
+          title: 'Error',
+          description: err.error || 'Failed to bulk-create slots',
+          variant: 'destructive'
+        })
+      }
+    } catch (error) {
+      console.error('Error bulk-creating slots:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to bulk-create slots',
+        variant: 'destructive'
+      })
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   const getAvailableDatesForCalendar = () => {
-    return availableSlots.map(slot => parseISO(slot.date))
+    return availableSlots.map(slot => {
+      const d = new Date(slot.date)
+      return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+    })
   }
 
   if (loading) {
@@ -200,6 +245,26 @@ export default function AvailableSlotsPage() {
             <Plus className="w-4 h-4 mr-2" />
             Add Available Slot
           </Button>
+        </div>
+
+        {/* Bulk tools */}
+        <div className="mb-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Bulk Create Slots</CardTitle>
+              <CardDescription>
+                Copy this week's available time windows to the next {APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS} days. Existing days with slots are skipped.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={handleBulkCreate} disabled={bulkLoading}>
+                {bulkLoading ? 'Creating…' : `Bulk Create for Next ${APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS} Days`}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Uses this week's pattern by weekday (e.g., Mondays match Mondays) and leaves days that already have slots unchanged.
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -243,7 +308,11 @@ export default function AvailableSlotsPage() {
                     <div key={slot.id} className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200">
                       <div className="flex-1">
                         <div className="font-medium">
-                          {format(parseISO(slot.date), 'MMMM d, yyyy')}
+                          {(() => {
+                            const d = new Date(slot.date)
+                            const local = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+                            return format(local, 'MMMM d, yyyy')
+                          })()}
                         </div>
                         <div className="text-sm text-gray-600">
                           <span className="flex items-center gap-1">
