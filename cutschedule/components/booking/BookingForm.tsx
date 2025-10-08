@@ -57,8 +57,10 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
           const data = await response.json()
           // Convert date strings to Date objects and get unique dates
           const uniqueDates = Array.from(
-            new Set(data.map((item: any) => new Date(item.date).toDateString()))
-          ).map(dateStr => new Date(dateStr))
+            new Set<string>(
+              data.map((item: any) => new Date(item.date).toDateString())
+            )
+          ).map((dateStr) => new Date(dateStr))
           setAvailableDates(uniqueDates)
         }
       } catch (error) {
