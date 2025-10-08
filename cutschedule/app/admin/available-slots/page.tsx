@@ -253,7 +253,7 @@ export default function AvailableSlotsPage() {
             <CardHeader>
               <CardTitle>Bulk Create Slots</CardTitle>
               <CardDescription>
-                Copy this week's available time windows to the next {APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS} days. Existing days with slots are skipped.
+                Copy this week&apos;s available time windows to the next {APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS} days. Existing days with slots are skipped.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -261,7 +261,7 @@ export default function AvailableSlotsPage() {
                 {bulkLoading ? 'Creating…' : `Bulk Create for Next ${APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS} Days`}
               </Button>
               <p className="text-xs text-muted-foreground mt-2">
-                Uses this week's pattern by weekday (e.g., Mondays match Mondays) and leaves days that already have slots unchanged.
+                Uses this week&apos;s pattern by weekday (e.g., Mondays match Mondays) and leaves days that already have slots unchanged.
               </p>
             </CardContent>
           </Card>
