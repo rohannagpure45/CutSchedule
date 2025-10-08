@@ -10,7 +10,8 @@ interface DatePickerProps {
   selectedDate?: Date
   onDateSelect: (date: Date) => void
   workingDays?: number[] // Array of working days (0-6, Sunday-Saturday)
-  blockedDates?: Date[] // Array of blocked dates
+  blockedDates?: Date[] // Array of blocked dates (blacklist approach)
+  availableDates?: Date[] // Array of available dates (whitelist approach - takes precedence)
   className?: string
 }
 
@@ -19,6 +20,7 @@ export function DatePicker({
   onDateSelect,
   workingDays = [1, 2, 3, 4, 5, 6], // Default: Monday-Saturday
   blockedDates = [],
+  availableDates,
   className
 }: DatePickerProps) {
   const today = new Date()
@@ -31,6 +33,12 @@ export function DatePicker({
     // Disable dates beyond max advance booking
     if (date > maxDate) return true
 
+    // If availableDates is provided (whitelist approach), only allow those dates
+    if (availableDates && availableDates.length > 0) {
+      return !availableDates.some(availableDate => isSameDay(availableDate, date))
+    }
+
+    // Otherwise, use the blacklist approach (old behavior)
     // Disable non-working days
     const dayOfWeek = date.getDay()
     if (!workingDays.includes(dayOfWeek)) return true

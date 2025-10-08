@@ -26,13 +26,12 @@ model WorkingHours {
   isActive  Boolean @default(true)
 }
 
-model BlockedDate {
+model AvailableSlot {
   id        String   @id @default(cuid())
   date      DateTime
-  startTime String?  // Optional - if null, whole day is blocked
-  endTime   String?  // Optional - if null, whole day is blocked
-  isFullDay Boolean  @default(false)
-  reason    String?
+  startTime String   // Required - when this slot starts
+  endTime   String   // Required - when this slot ends
+  reason    String?  // Optional - e.g., "Extended hours", "Special availability"
   createdAt DateTime @default(now())
 
   @@index([date])

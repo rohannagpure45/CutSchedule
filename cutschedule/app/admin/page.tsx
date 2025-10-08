@@ -291,11 +291,11 @@ export default function AdminDashboard() {
                 <Button
                   className="h-16"
                   variant="outline"
-                  onClick={() => router.push('/admin/blocked-dates')}
+                  onClick={() => router.push('/admin/available-slots')}
                 >
                   <div className="text-center">
                     <Calendar className="w-6 h-6 mx-auto mb-1" />
-                    <p className="text-sm">Blocked Dates</p>
+                    <p className="text-sm">Available Time Slots</p>
                   </div>
                 </Button>
                 <Button

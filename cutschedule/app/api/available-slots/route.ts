@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/db'
-import { startOfDay, endOfDay } from 'date-fns'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,17 +10,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const blockedDates = await prisma.blockedDate.findMany({
+    const availableSlots = await prisma.availableSlot.findMany({
       orderBy: {
         date: 'asc'
       }
     })
 
-    return NextResponse.json(blockedDates)
+    return NextResponse.json(availableSlots)
   } catch (error) {
-    console.error('Error fetching blocked dates:', error)
+    console.error('Error fetching available slots:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch blocked dates' },
+      { error: 'Failed to fetch available slots' },
       { status: 500 }
     )
   }
@@ -36,38 +35,32 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { date, startTime, endTime, isFullDay, reason } = body
+    const { date, startTime, endTime, reason } = body
 
-    if (!date) {
-      return NextResponse.json({ error: 'Date is required' }, { status: 400 })
+    if (!date || !startTime || !endTime) {
+      return NextResponse.json(
+        { error: 'Date, start time, and end time are required' },
+        { status: 400 }
+      )
     }
 
     // Parse the date
-    const blockDate = new Date(date)
+    const slotDate = new Date(date)
 
-    // If full day, clear time fields
-    const blockData: any = {
-      date: blockDate,
-      isFullDay: !!isFullDay,
-      reason: reason || null
-    }
-
-    if (!isFullDay && startTime && endTime) {
-      blockData.startTime = startTime
-      blockData.endTime = endTime
-    } else {
-      blockData.isFullDay = true
-    }
-
-    const blockedDate = await prisma.blockedDate.create({
-      data: blockData
+    const availableSlot = await prisma.availableSlot.create({
+      data: {
+        date: slotDate,
+        startTime,
+        endTime,
+        reason: reason || null
+      }
     })
 
-    return NextResponse.json(blockedDate)
+    return NextResponse.json(availableSlot)
   } catch (error) {
-    console.error('Error creating blocked date:', error)
+    console.error('Error creating available slot:', error)
     return NextResponse.json(
-      { error: 'Failed to create blocked date' },
+      { error: 'Failed to create available slot' },
       { status: 500 }
     )
   }
@@ -88,15 +81,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 })
     }
 
-    await prisma.blockedDate.delete({
+    await prisma.availableSlot.delete({
       where: { id }
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting blocked date:', error)
+    console.error('Error deleting available slot:', error)
     return NextResponse.json(
-      { error: 'Failed to delete blocked date' },
+      { error: 'Failed to delete available slot' },
       { status: 500 }
     )
   }

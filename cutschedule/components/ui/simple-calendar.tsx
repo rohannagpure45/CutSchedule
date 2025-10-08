@@ -10,6 +10,7 @@ interface SimpleCalendarProps {
   onSelect?: (date: Date) => void
   disabled?: (date: Date) => boolean
   blockedDates?: Date[]
+  availableDates?: Date[]
   className?: string
 }
 
@@ -18,6 +19,7 @@ export function SimpleCalendar({
   onSelect,
   disabled,
   blockedDates = [],
+  availableDates = [],
   className
 }: SimpleCalendarProps) {
   const [currentMonth, setCurrentMonth] = React.useState(
@@ -90,6 +92,10 @@ export function SimpleCalendar({
     return blockedDates.some(blockedDate => isSameDay(date, blockedDate))
   }
 
+  const isAvailable = (date: Date) => {
+    return availableDates.some(availableDate => isSameDay(date, availableDate))
+  }
+
   const days = generateCalendarDays()
 
   return (
@@ -139,6 +145,7 @@ export function SimpleCalendar({
           const isSelected = isSameDay(date, selected || null)
           const isDisabled = disabled ? disabled(date) : false
           const isDateBlocked = isBlocked(date)
+          const isDateAvailable = isAvailable(date)
 
           return (
             <button
@@ -152,7 +159,8 @@ export function SimpleCalendar({
                 isSelected && "bg-blue-700 text-white font-bold hover:bg-blue-800 hover:text-white",
                 isDisabled && "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-50 hover:bg-muted/50 hover:text-muted-foreground",
                 isDateBlocked && !isSelected && "bg-red-100 text-red-700 font-semibold hover:bg-red-200 hover:text-red-800",
-                !isSelected && !isDisabled && !isDateBlocked && "hover:bg-accent"
+                isDateAvailable && !isSelected && !isDateBlocked && "bg-green-100 text-green-700 font-semibold hover:bg-green-200 hover:text-green-800",
+                !isSelected && !isDisabled && !isDateBlocked && !isDateAvailable && "hover:bg-accent"
               )}
             >
               {date.getDate()}

@@ -30,7 +30,7 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
   )
   const [selectedTime, setSelectedTime] = useState<string | undefined>(initialData?.time)
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
-  const [blockedDates, setBlockedDates] = useState<Date[]>([])
+  const [availableDates, setAvailableDates] = useState<Date[]>([])
   const [loading, setLoading] = useState(false)
   const [slotsLoading, setSlotsLoading] = useState(false)
 
@@ -48,22 +48,24 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
   // Watch form values for validation
   const watchedValues = watch()
 
-  // Fetch blocked dates on mount
+  // Fetch available dates on mount
   useEffect(() => {
-    const fetchBlockedDates = async () => {
+    const fetchAvailableDates = async () => {
       try {
-        const response = await fetch('/api/availability/blocked-dates')
+        const response = await fetch('/api/available-slots')
         if (response.ok) {
           const data = await response.json()
-          // Convert date strings to Date objects
-          const dates = data.map((item: any) => new Date(item.date))
-          setBlockedDates(dates)
+          // Convert date strings to Date objects and get unique dates
+          const uniqueDates = Array.from(
+            new Set(data.map((item: any) => new Date(item.date).toDateString()))
+          ).map(dateStr => new Date(dateStr))
+          setAvailableDates(uniqueDates)
         }
       } catch (error) {
-        console.error('Failed to fetch blocked dates:', error)
+        console.error('Failed to fetch available dates:', error)
       }
     }
-    fetchBlockedDates()
+    fetchAvailableDates()
   }, [])
 
   // Fetch available time slots when date changes
@@ -179,7 +181,7 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
         <DatePicker
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
-          blockedDates={blockedDates}
+          availableDates={availableDates}
           className={cn(
             "transition-opacity",
             currentStep !== 'date' && selectedDate && "opacity-75"

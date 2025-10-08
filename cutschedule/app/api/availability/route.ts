@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Check for blocked dates
-    const blockedDates = await prisma.blockedDate.findMany({
+    // Check for available slots on this date
+    const availableSlots = await prisma.availableSlot.findMany({
       where: {
         date: {
           gte: startOfDay(date),
@@ -53,13 +53,12 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Check if entire day is blocked
-    const fullDayBlocked = blockedDates.some(bd => bd.isFullDay)
-    if (fullDayBlocked) {
+    // If no available slots defined for this date, nothing is available
+    if (availableSlots.length === 0) {
       return NextResponse.json({
         available: false,
         slots: [],
-        reason: 'Date is blocked'
+        reason: 'No available time slots configured for this date'
       })
     }
 
@@ -95,13 +94,11 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Generate available time slots
+    // Generate available time slots based on available slots
     const slots = generateAvailableSlots(
-      workingHours.startTime,
-      workingHours.endTime,
       appointments,
       date,
-      blockedDates
+      availableSlots
     )
 
     return NextResponse.json({
@@ -133,11 +130,9 @@ export async function GET(request: NextRequest) {
 }
 
 function generateAvailableSlots(
-  startTime: string,
-  endTime: string,
   appointments: Array<{ startTime: Date; endTime: Date }>,
   targetDate: Date,
-  blockedDates: Array<{ startTime: string | null; endTime: string | null; isFullDay: boolean }>
+  availableSlots: Array<{ startTime: string; endTime: string }>
 ): string[] {
   const slots: string[] = []
 
@@ -145,91 +140,74 @@ function generateAvailableSlots(
   const baseDate = new Date(targetDate)
   baseDate.setHours(0, 0, 0, 0)
 
-  // Parse working hours
-  const [startHour, startMinute] = startTime.split(':').map(Number)
-  const [endHour, endMinute] = endTime.split(':').map(Number)
-
-  const workStart = new Date(baseDate)
-  workStart.setHours(startHour, startMinute, 0, 0)
-
-  const workEnd = new Date(baseDate)
-  workEnd.setHours(endHour, endMinute, 0, 0)
-
-  // If it's today, start from current time (rounded up to next 15-min interval)
-  let currentSlot = new Date(workStart)
   const now = new Date()
+  const isToday = targetDate.toDateString() === now.toDateString()
 
-  if (targetDate.toDateString() === now.toDateString()) {
-    const currentTime = new Date(baseDate)
-    currentTime.setHours(now.getHours(), now.getMinutes(), 0, 0)
+  // Loop through each available slot window
+  for (const availableWindow of availableSlots) {
+    const [startHour, startMinute] = availableWindow.startTime.split(':').map(Number)
+    const [endHour, endMinute] = availableWindow.endTime.split(':').map(Number)
 
-    if (currentTime > workStart) {
-      // Round up to next 15-minute interval
-      const minutes = currentTime.getMinutes()
-      const roundedMinutes = Math.ceil(minutes / 15) * 15
-      currentTime.setMinutes(roundedMinutes, 0, 0)
+    const windowStart = new Date(baseDate)
+    windowStart.setHours(startHour, startMinute, 0, 0)
 
-      if (currentTime > workStart) {
-        currentSlot = currentTime
+    const windowEnd = new Date(baseDate)
+    windowEnd.setHours(endHour, endMinute, 0, 0)
+
+    // If it's today, start from current time (rounded up to next 15-min interval)
+    let currentSlot = new Date(windowStart)
+
+    if (isToday) {
+      const currentTime = new Date(baseDate)
+      currentTime.setHours(now.getHours(), now.getMinutes(), 0, 0)
+
+      if (currentTime > windowStart) {
+        // Round up to next 15-minute interval
+        const minutes = currentTime.getMinutes()
+        const roundedMinutes = Math.ceil(minutes / 15) * 15
+        currentTime.setMinutes(roundedMinutes, 0, 0)
+
+        if (currentTime > windowStart) {
+          currentSlot = currentTime
+        }
       }
     }
-  }
 
-  // Generate slots every 15 minutes
-  while (currentSlot < workEnd) {
-    const slotEnd = addMinutes(currentSlot, APP_CONFIG.APPOINTMENT_DURATION)
+    // Generate slots every 15 minutes within this available window
+    while (currentSlot < windowEnd) {
+      const slotEnd = addMinutes(currentSlot, APP_CONFIG.APPOINTMENT_DURATION)
 
-    // Check if slot would extend beyond working hours
-    if (slotEnd > workEnd) {
-      break
-    }
+      // Check if slot would extend beyond this available window
+      if (slotEnd > windowEnd) {
+        break
+      }
 
-    // Check if this slot conflicts with any appointment (including buffer)
-    const isBlockedByAppointment = appointments.some(apt => {
-      const aptStart = new Date(apt.startTime)
-      const aptEndWithBuffer = addMinutes(new Date(apt.endTime), APP_CONFIG.BUFFER_TIME)
+      // Check if this slot conflicts with any appointment (including buffer)
+      const isBlockedByAppointment = appointments.some(apt => {
+        const aptStart = new Date(apt.startTime)
+        const aptEndWithBuffer = addMinutes(new Date(apt.endTime), APP_CONFIG.BUFFER_TIME)
 
-      // Check for overlap: slot conflicts if it overlaps with appointment + buffer
-      return (
-        isWithinInterval(currentSlot, { start: aptStart, end: aptEndWithBuffer }) ||
-        isWithinInterval(slotEnd, { start: aptStart, end: aptEndWithBuffer }) ||
-        isWithinInterval(aptStart, { start: currentSlot, end: slotEnd }) ||
-        isWithinInterval(aptEndWithBuffer, { start: currentSlot, end: slotEnd })
-      )
-    })
-
-    // Check if this slot conflicts with any blocked date time range
-    const isBlockedByDate = blockedDates.some(blocked => {
-      if (blocked.isFullDay) return true // Already handled above, but just in case
-
-      if (blocked.startTime && blocked.endTime) {
-        const [blockStartHour, blockStartMinute] = blocked.startTime.split(':').map(Number)
-        const [blockEndHour, blockEndMinute] = blocked.endTime.split(':').map(Number)
-
-        const blockStart = new Date(baseDate)
-        blockStart.setHours(blockStartHour, blockStartMinute, 0, 0)
-
-        const blockEnd = new Date(baseDate)
-        blockEnd.setHours(blockEndHour, blockEndMinute, 0, 0)
-
-        // Check for overlap with blocked time
+        // Check for overlap: slot conflicts if it overlaps with appointment + buffer
         return (
-          isWithinInterval(currentSlot, { start: blockStart, end: blockEnd }) ||
-          isWithinInterval(slotEnd, { start: blockStart, end: blockEnd }) ||
-          isWithinInterval(blockStart, { start: currentSlot, end: slotEnd }) ||
-          isWithinInterval(blockEnd, { start: currentSlot, end: slotEnd })
+          isWithinInterval(currentSlot, { start: aptStart, end: aptEndWithBuffer }) ||
+          isWithinInterval(slotEnd, { start: aptStart, end: aptEndWithBuffer }) ||
+          isWithinInterval(aptStart, { start: currentSlot, end: slotEnd }) ||
+          isWithinInterval(aptEndWithBuffer, { start: currentSlot, end: slotEnd })
         )
+      })
+
+      if (!isBlockedByAppointment) {
+        const timeStr = format(currentSlot, 'HH:mm')
+        // Avoid duplicate slots if windows overlap
+        if (!slots.includes(timeStr)) {
+          slots.push(timeStr)
+        }
       }
 
-      return false
-    })
-
-    if (!isBlockedByAppointment && !isBlockedByDate) {
-      slots.push(format(currentSlot, 'HH:mm'))
+      currentSlot = addMinutes(currentSlot, APP_CONFIG.SLOT_INTERVAL)
     }
-
-    currentSlot = addMinutes(currentSlot, APP_CONFIG.SLOT_INTERVAL)
   }
 
-  return slots
+  // Sort slots chronologically
+  return slots.sort()
 }
