@@ -2,6 +2,7 @@
 
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import type { Route } from 'next'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -114,7 +115,7 @@ export default function AdminDashboard() {
               <p className="text-sm text-gray-600">Welcome back, {session?.user?.name || 'Admin'}</p>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => router.push('/admin/settings' as Route)}>
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </Button>
