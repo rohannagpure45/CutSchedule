@@ -33,8 +33,9 @@ export function DatePicker({
     // Disable dates beyond max advance booking
     if (date > maxDate) return true
 
-    // If availableDates is provided (whitelist approach), only allow those dates
-    if (availableDates && availableDates.length > 0) {
+    // If availableDates is provided (whitelist approach), only allow those dates.
+    // Treat empty array as "no dates available" so everything is disabled by default.
+    if (availableDates !== undefined) {
       return !availableDates.some(availableDate => isSameDay(availableDate, date))
     }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { startOfDay, endOfDay, format, parse, addMinutes, isWithinInterval } from 'date-fns'
+import { startOfDay, endOfDay, format, addMinutes, isWithinInterval } from 'date-fns'
 import { availabilityQuerySchema } from '@/lib/utils/validation'
 import { APP_CONFIG } from '@/lib/constants'
 
@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
     // Validate date format
     const validatedQuery = availabilityQuerySchema.parse({ date: dateStr })
     const date = new Date(validatedQuery.date)
-    const dayOfWeek = date.getDay()
 
     // Check if the date is in the past
     const today = new Date()
@@ -62,21 +61,6 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Get working hours for this day
-    const workingHours = await prisma.workingHours.findUnique({
-      where: {
-        dayOfWeek: dayOfWeek,
-      },
-    })
-
-    if (!workingHours || !workingHours.isActive) {
-      return NextResponse.json({
-        available: false,
-        slots: [],
-        reason: 'Closed on this day'
-      })
-    }
-
     // Get all confirmed appointments for this date
     const appointments = await prisma.appointment.findMany({
       where: {
@@ -104,10 +88,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       available: slots.length > 0,
       slots,
-      workingHours: {
-        start: workingHours.startTime,
-        end: workingHours.endTime,
-      },
       appointmentDuration: APP_CONFIG.APPOINTMENT_DURATION,
       bufferTime: APP_CONFIG.BUFFER_TIME
     })

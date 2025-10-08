@@ -279,16 +279,7 @@ export default function AdminDashboard() {
                     <p className="text-sm">View All Appointments</p>
                   </div>
                 </Button>
-                <Button
-                  className="h-16"
-                  variant="outline"
-                  onClick={() => router.push('/admin/working-hours')}
-                >
-                  <div className="text-center">
-                    <Clock className="w-6 h-6 mx-auto mb-1" />
-                    <p className="text-sm">Manage Working Hours</p>
-                  </div>
-                </Button>
+                {/** Working Hours removed in favor of Available Slots as single source of truth **/}
                 <Button
                   className="h-16"
                   variant="outline"

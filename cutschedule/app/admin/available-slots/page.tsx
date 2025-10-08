@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { SimpleCalendar } from '@/components/ui/simple-calendar'
 import { ArrowLeft, Plus, Calendar, Trash2, Clock } from 'lucide-react'
-import { format, parseISO, isFuture } from 'date-fns'
+import { format, parseISO, isFuture, startOfToday } from 'date-fns'
 import { useToast } from '@/hooks/use-toast'
 
 interface AvailableSlot {
@@ -217,7 +217,7 @@ export default function AvailableSlotsPage() {
               <SimpleCalendar
                 selected={undefined}
                 className="rounded-md border"
-                disabled={(date) => date < new Date()}
+                disabled={(date) => date < startOfToday()}
                 availableDates={getAvailableDatesForCalendar()}
               />
             </CardContent>
@@ -288,7 +288,7 @@ export default function AvailableSlotsPage() {
                 selected={selectedDate}
                 onSelect={setSelectedDate}
                 className="rounded-md border mt-2"
-                disabled={(date) => date < new Date()}
+                disabled={(date) => date < startOfToday()}
               />
             </div>
 
