@@ -44,8 +44,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse the date
-    const slotDate = new Date(date)
+    // Parse the date as a local date (avoid UTC shift from YYYY-MM-DD)
+    let slotDate: Date
+    if (typeof date === 'string') {
+      const [y, m, d] = date.split('-').map((v: string) => parseInt(v, 10))
+      slotDate = new Date(y, (m || 1) - 1, d || 1)
+    } else if (date instanceof Date) {
+      slotDate = date
+    } else {
+      slotDate = new Date(date)
+    }
 
     const availableSlot = await prisma.availableSlot.create({
       data: {
