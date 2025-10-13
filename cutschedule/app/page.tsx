@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, CheckSquare, RotateCcw, MapPin, Phone } from "lucide-react"
+import { Calendar, CheckSquare, RotateCcw, MapPin, Instagram } from "lucide-react"
 import { APP_CONFIG } from "@/lib/constants"
 
 // Test deployment with Root Directory set to cutschedule
@@ -93,11 +93,11 @@ export default function HomePage() {
               </div>
 
               <div className="flex flex-col items-center space-y-2">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Phone className="w-6 h-6 text-green-600" />
+                <div className="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
+                  <Instagram className="w-6 h-6 text-pink-600" />
                 </div>
-                <h3 className="font-semibold">Phone</h3>
-                <p className="text-sm text-muted-foreground">{APP_CONFIG.BARBER_PHONE}</p>
+                <h3 className="font-semibold">Instagram</h3>
+                <p className="text-sm text-muted-foreground">@kerr_blendz</p>
               </div>
             </div>
           </CardContent>
