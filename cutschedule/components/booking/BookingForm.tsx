@@ -52,7 +52,7 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
   useEffect(() => {
     const fetchAvailableDates = async () => {
       try {
-        const response = await fetch('/api/available-slots')
+        const response = await fetch('/api/available-dates')
         if (response.ok) {
           const data = await response.json()
           // Convert server ISO dates to local date-only and get unique dates
