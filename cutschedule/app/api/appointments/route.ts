@@ -94,15 +94,45 @@ export async function POST(request: NextRequest) {
       endTime
     })
 
-    // Verify the time slot is still available
-    const dayOfWeek = appointmentDate.getDay()
-    const workingHours = await prisma.workingHours.findUnique({
-      where: { dayOfWeek },
+    // Verify the date has available slots configured
+    const availableSlots = await prisma.availableSlot.findMany({
+      where: {
+        date: {
+          gte: startOfDay(appointmentDate),
+          lte: endOfDay(appointmentDate),
+        }
+      }
     })
 
-    if (!workingHours || !workingHours.isActive) {
+    if (availableSlots.length === 0) {
       return NextResponse.json(
         { error: 'Selected day is not available for appointments' },
+        { status: 400 }
+      )
+    }
+
+    // Verify the selected time falls within an available slot window
+    // and that the appointment duration fits within the window
+    const requestedTime = validatedData.time // Format: "HH:mm"
+    const [requestedHour, requestedMinute] = requestedTime.split(':').map(Number)
+
+    const isWithinAvailableWindow = availableSlots.some(slot => {
+      const [slotStartHour, slotStartMinute] = slot.startTime.split(':').map(Number)
+      const [slotEndHour, slotEndMinute] = slot.endTime.split(':').map(Number)
+
+      // Convert times to minutes since midnight for easier comparison
+      const requestedMinutes = requestedHour * 60 + requestedMinute
+      const slotStartMinutes = slotStartHour * 60 + slotStartMinute
+      const slotEndMinutes = slotEndHour * 60 + slotEndMinute
+      const appointmentEndMinutes = requestedMinutes + APP_CONFIG.APPOINTMENT_DURATION
+
+      // Check if appointment starts within window AND ends before window closes
+      return requestedMinutes >= slotStartMinutes && appointmentEndMinutes <= slotEndMinutes
+    })
+
+    if (!isWithinAvailableWindow) {
+      return NextResponse.json(
+        { error: 'Selected time is not within available hours' },
         { status: 400 }
       )
     }
