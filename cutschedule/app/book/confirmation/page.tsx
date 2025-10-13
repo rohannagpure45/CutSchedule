@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, Calendar, Clock, MapPin, Phone, MessageSquare, ArrowLeft, XCircle } from "lucide-react"
 import Link from "next/link"
-import { format } from "date-fns"
 import { APP_CONFIG } from "@/lib/constants"
 
 interface Appointment {
@@ -66,8 +65,19 @@ function ConfirmationContent() {
     }
 
     return {
-      date: format(startTime, 'EEEE, MMMM d, yyyy'),
-      time: format(startTime, 'h:mm a')
+      date: startTime.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'America/New_York'
+      }),
+      time: startTime.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'America/New_York'
+      })
     }
   }
 
@@ -81,7 +91,12 @@ function ConfirmationContent() {
       return 'Invalid Time'
     }
 
-    return format(endTime, 'h:mm a')
+    return endTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/New_York'
+    })
   }
 
   if (loading) {
