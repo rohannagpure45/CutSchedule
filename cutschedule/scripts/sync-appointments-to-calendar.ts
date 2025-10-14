@@ -93,4 +93,7 @@ async function syncAppointmentsToCalendar() {
 }
 
 // Run the sync
-syncAppointmentsToCalendar()
+syncAppointmentsToCalendar().catch(err => {
+  console.error('❌ Unhandled error:', err)
+  process.exit(1)
+})

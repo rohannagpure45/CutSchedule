@@ -34,14 +34,26 @@ async function checkAccounts() {
       }
     }
 
-    console.log(`\n🔑 Admin email from env: ${process.env.ADMIN_EMAIL}`)
-    console.log(`   Does admin have a Google account? ${users.some(u => u.email === process.env.ADMIN_EMAIL && u.accounts.some(a => a.provider === 'google'))}\n`)
+    const adminEmail = process.env.ADMIN_EMAIL
+    if (!adminEmail) {
+      console.log(`\n⚠️  ADMIN_EMAIL not set in environment`)
+    } else {
+      const hasGoogleAccount = users.some(u =>
+        u.email === adminEmail && u.accounts.some(a => a.provider === 'google')
+      )
+      console.log(`\n🔑 Admin email from env: ${adminEmail}`)
+      console.log(`   Does admin have a Google account? ${hasGoogleAccount}\n`)
+    }
 
   } catch (error) {
     console.error('❌ Error:', error)
+    process.exit(1)
   } finally {
     await prisma.$disconnect()
   }
 }
 
-checkAccounts()
+checkAccounts().catch(err => {
+  console.error('❌ Unhandled error:', err)
+  process.exit(1)
+})

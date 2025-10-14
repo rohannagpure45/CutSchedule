@@ -12,8 +12,10 @@ declare module 'next-auth' {
     }
   }
 
+  // JWT interface for middleware token type compatibility
+  // With database sessions, middleware still uses token structure
   interface JWT {
-    isAdmin?: boolean
-    adminId?: string
+    email?: string | null
+    sub?: string
   }
 }

@@ -29,17 +29,17 @@ const handler = NextAuth({
       }
 
       // Update admin record in database
-      if (account?.provider === 'google') {
+      if (account?.provider === 'google' && user.email) {
         try {
           const admin = await prisma.admin.findUnique({
-            where: { email: user.email! },
+            where: { email: user.email },
           })
 
           if (!admin) {
             console.log('Creating new admin record for:', user.email)
             await prisma.admin.create({
               data: {
-                email: user.email!,
+                email: user.email,
                 googleId: account.providerAccountId,
                 name: user.name || 'Admin User',
               },
@@ -47,7 +47,7 @@ const handler = NextAuth({
           } else if (admin.googleId === 'pending-first-login') {
             // Update Google ID on first login
             await prisma.admin.update({
-              where: { email: user.email! },
+              where: { email: user.email },
               data: {
                 googleId: account.providerAccountId,
                 name: user.name || admin.name,
@@ -72,11 +72,24 @@ const handler = NextAuth({
       }
       return baseUrl + '/admin'
     },
-    async session({ session, token }) {
-      // Add admin flag to session from JWT token
-      if (token && session.user) {
-        session.user.isAdmin = token.isAdmin as boolean
-        session.user.adminId = token.adminId as string
+    async session({ session, user }) {
+      // Add custom fields to session from database user
+      if (user && session.user) {
+        session.user.id = user.id
+        session.user.isAdmin = user.email === process.env.ADMIN_EMAIL
+
+        // Get admin ID from Admin table
+        // Note: With database session strategy, this runs on every session check.
+        // Consider storing adminId in User table for better performance if needed.
+        try {
+          const admin = await prisma.admin.findUnique({
+            where: { email: user.email ?? undefined },
+          })
+          session.user.adminId = admin?.id
+        } catch (error) {
+          console.error('Error fetching admin ID:', error)
+          session.user.adminId = undefined
+        }
       }
 
       // Debug logging in development
@@ -84,28 +97,11 @@ const handler = NextAuth({
         console.log('Session callback:', {
           email: session.user?.email,
           isAdmin: session.user?.isAdmin,
-          tokenIsAdmin: token?.isAdmin
+          userId: user?.id
         })
       }
 
       return session
-    },
-    async jwt({ token, account, user }) {
-      // Initial sign in
-      if (account && user) {
-        token.isAdmin = user.email === process.env.ADMIN_EMAIL
-        token.adminId = user.id
-        token.email = user.email
-        token.accessToken = account.access_token
-        token.refreshToken = account.refresh_token
-      }
-
-      // Subsequent requests - ensure admin flag is set
-      if (token.email === process.env.ADMIN_EMAIL) {
-        token.isAdmin = true
-      }
-
-      return token
     },
   },
   pages: {
@@ -114,7 +110,7 @@ const handler = NextAuth({
     signOut: '/admin/login',
   },
   session: {
-    strategy: 'jwt',
+    strategy: 'database',
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,

@@ -25,9 +25,13 @@ async function checkAdmin() {
 
   } catch (error) {
     console.error('❌ Error:', error)
+    process.exit(1)
   } finally {
     await prisma.$disconnect()
   }
 }
 
-checkAdmin()
+checkAdmin().catch(err => {
+  console.error('❌ Unhandled error:', err)
+  process.exit(1)
+})

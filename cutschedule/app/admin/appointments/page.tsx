@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -59,10 +59,23 @@ export default function AppointmentsPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
 
+  // Track mounted state to prevent state updates after unmount
+  const isMountedRef = useRef(true)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
   useEffect(() => {
     // Don't wait for session, just fetch appointments immediately
     // Middleware has already verified we're admin
     fetchAppointments()
+
+    // Cleanup function
+    return () => {
+      isMountedRef.current = false
+      // Abort any ongoing fetch operations
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -70,25 +83,42 @@ export default function AppointmentsPage() {
   }, [appointments, searchTerm, statusFilter])
 
   const fetchAppointments = async () => {
+    // Create new AbortController for this fetch
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     try {
-      const response = await fetch('/api/appointments')
+      const response = await fetch('/api/appointments', {
+        signal: controller.signal
+      })
+
+      if (!isMountedRef.current) return
+
       if (response.ok) {
         const data = await response.json()
         const sortedAppointments = data.sort((a: Appointment, b: Appointment) =>
           new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
         )
+
+        if (!isMountedRef.current) return
         setAppointments(sortedAppointments)
 
         // Auto-complete past appointments
         await autoCompletePastAppointments(sortedAppointments)
       } else {
+        if (!isMountedRef.current) return
         toast({
           title: 'Error',
           description: 'Failed to fetch appointments',
           variant: 'destructive'
         })
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Don't show error if request was aborted due to unmount
+      if (error.name === 'AbortError') return
+
+      if (!isMountedRef.current) return
+
       console.error('Error fetching appointments:', error)
       toast({
         title: 'Error',
@@ -96,7 +126,9 @@ export default function AppointmentsPage() {
         variant: 'destructive'
       })
     } finally {
-      setLoading(false)
+      if (isMountedRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -129,6 +161,10 @@ export default function AppointmentsPage() {
     })
 
     const results = await Promise.all(updatePromises)
+
+    // Check if component is still mounted before updating state
+    if (!isMountedRef.current) return
+
     const successCount = results.filter(r => r.success).length
 
     if (successCount > 0) {
@@ -170,6 +206,8 @@ export default function AppointmentsPage() {
         method: 'DELETE'
       })
 
+      if (!isMountedRef.current) return
+
       if (response.ok) {
         toast({
           title: 'Success',
@@ -195,6 +233,8 @@ export default function AppointmentsPage() {
         })
       }
     } catch (error) {
+      if (!isMountedRef.current) return
+
       console.error('Error cancelling appointment:', error)
       toast({
         title: 'Error',
@@ -211,6 +251,8 @@ export default function AppointmentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed' })
       })
+
+      if (!isMountedRef.current) return
 
       if (response.ok) {
         toast({
@@ -234,6 +276,8 @@ export default function AppointmentsPage() {
         })
       }
     } catch (error) {
+      if (!isMountedRef.current) return
+
       console.error('Error updating appointment:', error)
       toast({
         title: 'Error',
@@ -252,6 +296,8 @@ export default function AppointmentsPage() {
 
       const data = await response.json()
 
+      if (!isMountedRef.current) return
+
       if (response.ok && data.success) {
         toast({
           title: 'Success',
@@ -268,6 +314,8 @@ export default function AppointmentsPage() {
         })
       }
     } catch (error) {
+      if (!isMountedRef.current) return
+
       console.error('Error syncing to calendar:', error)
       toast({
         title: 'Error',
@@ -275,7 +323,9 @@ export default function AppointmentsPage() {
         variant: 'destructive'
       })
     } finally {
-      setSyncing(false)
+      if (isMountedRef.current) {
+        setSyncing(false)
+      }
     }
   }
 
@@ -433,16 +483,20 @@ export default function AppointmentsPage() {
                         </TableCell>
                         <TableCell>{getStatusBadge(appointment.status)}</TableCell>
                         <TableCell>
-                          {appointment.googleEventId ? (
-                            <div className="flex items-center gap-2 text-green-600" title="Synced to Google Calendar">
-                              <CheckCircle className="w-4 h-4" />
-                              <span className="text-sm">Synced</span>
-                            </div>
+                          {appointment.status === 'confirmed' ? (
+                            appointment.googleEventId ? (
+                              <div className="flex items-center gap-2 text-green-600" title="Synced to Google Calendar">
+                                <CheckCircle className="w-4 h-4" />
+                                <span className="text-sm">Synced</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-amber-600" title="Not synced to Google Calendar">
+                                <AlertCircle className="w-4 h-4" />
+                                <span className="text-sm">Not Synced</span>
+                              </div>
+                            )
                           ) : (
-                            <div className="flex items-center gap-2 text-amber-600" title="Not synced to Google Calendar">
-                              <AlertCircle className="w-4 h-4" />
-                              <span className="text-sm">Not Synced</span>
-                            </div>
+                            <span className="text-sm text-gray-400" title="Calendar sync only applies to confirmed appointments">-</span>
                           )}
                         </TableCell>
                         <TableCell>
