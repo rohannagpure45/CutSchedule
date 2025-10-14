@@ -7,7 +7,8 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar, Clock, Users, Phone, LogOut, Settings } from 'lucide-react'
-import { format, isToday, isTomorrow, parseISO } from 'date-fns'
+import { format, parseISO } from 'date-fns'
+import { formatETTime, formatETDateShort, isETToday, isETTomorrow, etDaysFromToday } from '@/lib/utils/timezone'
 
 interface Appointment {
   id: string
@@ -45,18 +46,16 @@ export default function AdminDashboard() {
         setAppointments(data.filter((apt: Appointment) => apt.status !== 'cancelled'))
 
         // Calculate stats
-        const now = new Date()
         const todayAppts = data.filter((apt: Appointment) =>
-          apt.status === 'confirmed' && isToday(parseISO(apt.date))
+          apt.status === 'confirmed' && isETToday(apt.startTime)
         ).length
 
         const tomorrowAppts = data.filter((apt: Appointment) =>
-          apt.status === 'confirmed' && isTomorrow(parseISO(apt.date))
+          apt.status === 'confirmed' && isETTomorrow(apt.startTime)
         ).length
 
         const thisWeekAppts = data.filter((apt: Appointment) => {
-          const aptDate = parseISO(apt.date)
-          const daysDiff = Math.ceil((aptDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          const daysDiff = etDaysFromToday(apt.startTime)
           return apt.status === 'confirmed' && daysDiff >= 0 && daysDiff <= 7
         }).length
 
@@ -79,10 +78,9 @@ export default function AdminDashboard() {
   }
 
   const getAppointmentStatus = (apt: Appointment) => {
-    const aptDate = parseISO(apt.date)
-    if (isToday(aptDate)) return 'Today'
-    if (isTomorrow(aptDate)) return 'Tomorrow'
-    return format(aptDate, 'MMM d, yyyy')
+    if (isETToday(apt.startTime)) return 'Today'
+    if (isETTomorrow(apt.startTime)) return 'Tomorrow'
+    return formatETDateShort(apt.startTime)
   }
 
   if (loading) {
@@ -94,15 +92,16 @@ export default function AdminDashboard() {
   }
 
 
-  const todayAppointments = appointments.filter(apt =>
-    apt.status === 'confirmed' && isToday(parseISO(apt.date))
-  ).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+  const todayAppointments = appointments
+    .filter(apt => apt.status === 'confirmed' && isETToday(apt.startTime))
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
 
-  const upcomingAppointments = appointments.filter(apt => {
-    const aptDate = parseISO(apt.date)
-    const daysDiff = Math.ceil((aptDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-    return apt.status === 'confirmed' && daysDiff > 0 && daysDiff <= 7
-  }).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+  const upcomingAppointments = appointments
+    .filter(apt => {
+      const daysDiff = etDaysFromToday(apt.startTime)
+      return apt.status === 'confirmed' && daysDiff > 0 && daysDiff <= 7
+    })
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
 
   return (
     <div className="bg-gray-50">
@@ -211,7 +210,7 @@ export default function AdminDashboard() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">{format(parseISO(appointment.startTime), 'h:mm a')}</p>
+                        <p className="font-medium">{formatETTime(appointment.startTime)}</p>
                         <p className="text-xs text-gray-500">45 min</p>
                       </div>
                     </div>
@@ -244,7 +243,7 @@ export default function AdminDashboard() {
                         <p className="text-sm text-gray-600">{getAppointmentStatus(appointment)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">{format(parseISO(appointment.startTime), 'h:mm a')}</p>
+                        <p className="font-medium">{formatETTime(appointment.startTime)}</p>
                         <p className="text-xs text-gray-500">{appointment.phoneNumber}</p>
                       </div>
                     </div>

@@ -17,6 +17,7 @@ import {
 import { Calendar, Clock, MapPin, Phone, ArrowLeft, Search, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
+import { formatETDateLong, formatETTime } from '@/lib/utils/timezone'
 import { APP_CONFIG } from "@/lib/constants"
 import { normalizePhoneNumber } from "@/lib/utils/validation"
 
@@ -130,15 +131,15 @@ function ManageAppointmentContent() {
       return { date: 'Invalid Date', time: 'Invalid Time' }
     }
     return {
-      date: format(startTime, 'EEEE, MMMM d, yyyy'),
-      time: format(startTime, 'h:mm a')
+      date: formatETDateLong(startTime),
+      time: formatETTime(startTime)
     }
   }
 
   const formatEndTime = (endTimeStr: string) => {
     const endTime = new Date(endTimeStr)
     if (isNaN(endTime.getTime())) return 'Invalid Time'
-    return format(endTime, 'h:mm a')
+    return formatETTime(endTime)
   }
 
   return (

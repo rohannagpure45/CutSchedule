@@ -25,6 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Search, Phone, MessageCircle, Calendar, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { formatETDateTimeShort } from '@/lib/utils/timezone'
 import { useToast } from '@/hooks/use-toast'
 
 interface SMSLog {
@@ -290,7 +291,7 @@ export default function SMSLogsPage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-gray-400" />
-                            {format(parseISO(log.sentAt), 'MMM d, yyyy h:mm a')}
+                            {formatETDateTimeShort(log.sentAt)}
                           </div>
                         </TableCell>
                         <TableCell>

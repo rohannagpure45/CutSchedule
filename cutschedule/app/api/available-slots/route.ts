@@ -6,8 +6,16 @@ import { prisma } from '@/lib/db'
 export async function GET(request: NextRequest) {
   try {
     // Check authentication
+    const adminEmail = process.env.ADMIN_EMAIL
+    if (!adminEmail || adminEmail.trim() === '') {
+      console.error('ADMIN_EMAIL environment variable is not configured')
+      return NextResponse.json(
+        { error: 'Server configuration error: ADMIN_EMAIL not configured' },
+        { status: 500 }
+      )
+    }
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
+    if (!session?.user?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -30,8 +38,16 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
+    const adminEmail = process.env.ADMIN_EMAIL
+    if (!adminEmail || adminEmail.trim() === '') {
+      console.error('ADMIN_EMAIL environment variable is not configured')
+      return NextResponse.json(
+        { error: 'Server configuration error: ADMIN_EMAIL not configured' },
+        { status: 500 }
+      )
+    }
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
+    if (!session?.user?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -78,8 +94,16 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Check authentication
+    const adminEmail = process.env.ADMIN_EMAIL
+    if (!adminEmail || adminEmail.trim() === '') {
+      console.error('ADMIN_EMAIL environment variable is not configured')
+      return NextResponse.json(
+        { error: 'Server configuration error: ADMIN_EMAIL not configured' },
+        { status: 500 }
+      )
+    }
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
+    if (!session?.user?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

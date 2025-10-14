@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ArrowLeft, AlertCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { type AppointmentBookingData } from "@/lib/utils/validation"
+import { formatETDateLong, formatETTime } from '@/lib/utils/timezone'
 
 interface Appointment {
   id: string
@@ -162,16 +163,7 @@ function RescheduleContent() {
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Current Appointment:</p>
               <p className="font-semibold">
-                {appointmentDate.toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })} at {appointmentDate.toLocaleTimeString('en-US', {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true
-                })}
+                {formatETDateLong(appointment.startTime)} at {formatETTime(appointment.startTime)}
               </p>
             </div>
           </CardContent>

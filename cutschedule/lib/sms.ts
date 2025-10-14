@@ -112,6 +112,8 @@ export async function logSMS(
   }
 }
 
+const BUSINESS_TZ = 'America/New_York'
+
 export async function sendConfirmationSMS(
   appointment: {
     id: string
@@ -121,17 +123,19 @@ export async function sendConfirmationSMS(
     startTime: Date
   }
 ) {
-  const formattedDate = appointment.date.toLocaleDateString('en-US', {
+  const formattedDate = appointment.startTime.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: BUSINESS_TZ,
   })
 
   const formattedTime = appointment.startTime.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: BUSINESS_TZ,
   })
 
   return await sendSMS(
@@ -156,17 +160,19 @@ export async function sendReminderSMS(
   },
   reminderType: 'reminder_1day' | 'reminder_1hour'
 ) {
-  const formattedDate = appointment.date.toLocaleDateString('en-US', {
+  const formattedDate = appointment.startTime.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: BUSINESS_TZ,
   })
 
   const formattedTime = appointment.startTime.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: BUSINESS_TZ,
   })
 
   return await sendSMS(
@@ -190,17 +196,19 @@ export async function sendCancellationSMS(
     startTime: Date
   }
 ) {
-  const formattedDate = appointment.date.toLocaleDateString('en-US', {
+  const formattedDate = appointment.startTime.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: BUSINESS_TZ,
   })
 
   const formattedTime = appointment.startTime.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: BUSINESS_TZ,
   })
 
   return await sendSMS(

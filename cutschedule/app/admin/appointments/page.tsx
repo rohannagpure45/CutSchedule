@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/dialog'
 import { ArrowLeft, Search, Calendar, Phone, User, Clock, X, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { format, parseISO, startOfDay } from 'date-fns'
+import { formatETDateShort, formatETTime, formatETDateLong } from '@/lib/utils/timezone'
 import { useToast } from '@/hooks/use-toast'
 
 interface Appointment {
@@ -470,11 +471,9 @@ export default function AppointmentsPage() {
                       <TableRow key={appointment.id}>
                         <TableCell>
                           <div>
-                            <div className="font-medium">
-                              {format(parseISO(appointment.startTime), 'MMM d, yyyy')}
-                            </div>
+                            <div className="font-medium">{formatETDateShort(appointment.startTime)}</div>
                             <div className="text-sm text-gray-500">
-                              {format(parseISO(appointment.startTime), 'h:mm a')} - {format(parseISO(appointment.endTime), 'h:mm a')}
+                              {formatETTime(appointment.startTime)} - {formatETTime(appointment.endTime)}
                             </div>
                           </div>
                         </TableCell>
@@ -554,8 +553,8 @@ export default function AppointmentsPage() {
           {selectedAppointment && (
             <div className="space-y-2 py-4">
               <p><strong>Client:</strong> {selectedAppointment.clientName}</p>
-              <p><strong>Date:</strong> {format(parseISO(selectedAppointment.startTime), 'MMMM d, yyyy')}</p>
-              <p><strong>Time:</strong> {format(parseISO(selectedAppointment.startTime), 'h:mm a')}</p>
+              <p><strong>Date:</strong> {formatETDateLong(selectedAppointment.startTime)}</p>
+              <p><strong>Time:</strong> {formatETTime(selectedAppointment.startTime)}</p>
             </div>
           )}
           <DialogFooter>
