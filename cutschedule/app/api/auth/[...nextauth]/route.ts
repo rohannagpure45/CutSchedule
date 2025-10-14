@@ -28,71 +28,35 @@ const handler = NextAuth({
         return false
       }
 
-      // Update admin and user records atomically in a transaction
-      // Retry entire transaction from outside to avoid holding DB locks during backoff
-      if (account?.provider === 'google' && user.email && user.id) {
+      // Update admin record only - User will be created by PrismaAdapter after signIn succeeds
+      if (account?.provider === 'google' && user.email) {
         const userEmail = user.email
         const userName = user.name || 'Admin User'
-        const userId = user.id
 
-        const maxRetries = 3
-        const baseDelayMs = 50
+        try {
+          // Atomically upsert Admin record - single DB call prevents race conditions
+          // Always update googleId on sign-in since user is actively authenticating
+          const admin = await prisma.admin.upsert({
+            where: { email: userEmail },
+            create: {
+              email: userEmail,
+              googleId: account.providerAccountId,
+              name: userName,
+            },
+            update: {
+              googleId: account.providerAccountId,
+              name: userName,
+            },
+          })
 
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-          try {
-            await prisma.$transaction(async (tx) => {
-              // Atomically upsert Admin record - single DB call prevents race conditions
-              // Always update googleId on sign-in since user is actively authenticating
-              const admin = await tx.admin.upsert({
-                where: { email: userEmail },
-                create: {
-                  email: userEmail,
-                  googleId: account.providerAccountId,
-                  name: userName,
-                },
-                update: {
-                  googleId: account.providerAccountId,
-                  name: userName,
-                },
-              })
+          console.log('Admin record upserted for:', userEmail, 'with ID:', admin.id)
 
-              const adminId = admin.id
-              console.log('Admin record upserted for:', userEmail)
-
-              // Update User record with adminId
-              // This may fail with P2025 if PrismaAdapter hasn't created User yet
-              await tx.user.update({
-                where: { id: userId },
-                data: { adminId },
-              })
-            })
-
-            // Transaction succeeded - exit retry loop
-            console.log('Successfully linked admin and user records in transaction')
-            break
-
-          } catch (error: any) {
-            // Transaction automatically rolled back
-            // P2025 = Record not found (User might not be created by PrismaAdapter yet)
-            if (error?.code === 'P2025') {
-              if (attempt < maxRetries) {
-                // Backoff delay OUTSIDE the transaction to avoid holding locks
-                const delayMs = baseDelayMs * Math.pow(2, attempt)
-                console.log(`User not found (attempt ${attempt + 1}/${maxRetries + 1}), retrying after ${delayMs}ms...`)
-                await new Promise(resolve => setTimeout(resolve, delayMs))
-                // Continue to next attempt with fresh transaction
-              } else {
-                // Retries exhausted
-                console.error(`User update failed after ${maxRetries + 1} attempts`)
-                console.error('Transaction failed - admin/user records not updated:', error)
-                return false
-              }
-            } else {
-              // Non-P2025 error - fail immediately
-              console.error('Transaction failed - admin/user records not updated:', error)
-              return false
-            }
-          }
+          // Don't try to update User here - it doesn't exist yet!
+          // PrismaAdapter will create it after signIn returns true
+          // We'll link User to Admin in the session callback
+        } catch (error) {
+          console.error('Failed to upsert admin record:', error)
+          return false
         }
       }
 
@@ -115,8 +79,30 @@ const handler = NextAuth({
         session.user.id = user.id
         // Explicitly handle undefined emails (matching sign-in guard logic)
         session.user.isAdmin = user.email ? user.email === process.env.ADMIN_EMAIL : false
-        // Read adminId directly from User record (populated at sign-in)
-        session.user.adminId = user.adminId ?? undefined
+
+        // Link User to Admin if not already linked
+        if (user.email === process.env.ADMIN_EMAIL && !user.adminId) {
+          try {
+            const admin = await prisma.admin.findUnique({
+              where: { email: user.email },
+            })
+
+            if (admin) {
+              // Update User record with adminId if not set
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { adminId: admin.id },
+              })
+              session.user.adminId = admin.id
+              console.log('Linked User to Admin in session callback')
+            }
+          } catch (error) {
+            console.error('Failed to link User to Admin in session:', error)
+          }
+        } else {
+          // Read adminId directly from User record
+          session.user.adminId = user.adminId ?? undefined
+        }
       }
 
       // Debug logging in development
@@ -124,7 +110,8 @@ const handler = NextAuth({
         console.log('Session callback:', {
           email: session.user?.email,
           isAdmin: session.user?.isAdmin,
-          userId: user?.id
+          userId: user?.id,
+          adminId: session.user?.adminId
         })
       }
 
