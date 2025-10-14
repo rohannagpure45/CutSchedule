@@ -28,48 +28,50 @@ const handler = NextAuth({
         return false
       }
 
-      // Update admin record in database
-      if (account?.provider === 'google' && user.email) {
+      // Update admin and user records atomically in a transaction
+      if (account?.provider === 'google' && user.email && user.id) {
         try {
-          const admin = await prisma.admin.findUnique({
-            where: { email: user.email },
-          })
-
-          let adminId: string | undefined
-
-          if (!admin) {
-            console.log('Creating new admin record for:', user.email)
-            const newAdmin = await prisma.admin.create({
-              data: {
-                email: user.email,
-                googleId: account.providerAccountId,
-                name: user.name || 'Admin User',
-              },
-            })
-            adminId = newAdmin.id
-          } else if (admin.googleId === 'pending-first-login') {
-            // Update Google ID on first login
-            await prisma.admin.update({
+          await prisma.$transaction(async (tx) => {
+            const admin = await tx.admin.findUnique({
               where: { email: user.email },
-              data: {
-                googleId: account.providerAccountId,
-                name: user.name || admin.name,
-              },
             })
-            adminId = admin.id
-          } else {
-            adminId = admin.id
-          }
 
-          // Update User record with adminId for fast session lookups
-          if (adminId && user.id) {
-            await prisma.user.update({
+            let adminId: string
+
+            if (!admin) {
+              console.log('Creating new admin record for:', user.email)
+              const newAdmin = await tx.admin.create({
+                data: {
+                  email: user.email,
+                  googleId: account.providerAccountId,
+                  name: user.name || 'Admin User',
+                },
+              })
+              adminId = newAdmin.id
+            } else if (admin.googleId === 'pending-first-login') {
+              // Update Google ID on first login
+              await tx.admin.update({
+                where: { email: user.email },
+                data: {
+                  googleId: account.providerAccountId,
+                  name: user.name || admin.name,
+                },
+              })
+              adminId = admin.id
+            } else {
+              adminId = admin.id
+            }
+
+            // Update User record with adminId for fast session lookups
+            await tx.user.update({
               where: { id: user.id },
               data: { adminId },
             })
-          }
+          })
         } catch (error) {
-          console.error('Error updating admin record:', error)
+          console.error('Error updating admin/user records in transaction:', error)
+          // Prevent sign-in if transaction fails to avoid inconsistent state
+          return false
         }
       }
 
@@ -90,7 +92,8 @@ const handler = NextAuth({
       // Add custom fields to session from database user
       if (user && session.user) {
         session.user.id = user.id
-        session.user.isAdmin = user.email === process.env.ADMIN_EMAIL
+        // Explicitly handle undefined emails (matching sign-in guard logic)
+        session.user.isAdmin = user.email ? user.email === process.env.ADMIN_EMAIL : false
         // Read adminId directly from User record (populated at sign-in)
         session.user.adminId = user.adminId ?? undefined
       }

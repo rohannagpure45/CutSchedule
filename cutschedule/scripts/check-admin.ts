@@ -5,6 +5,8 @@
 import { prisma } from '../lib/db'
 
 async function checkAdmin() {
+  let hasError = false
+
   try {
     console.log('🔍 Checking admin configuration...\n')
 
@@ -25,9 +27,12 @@ async function checkAdmin() {
 
   } catch (error) {
     console.error('❌ Error:', error)
-    process.exit(1)
+    hasError = true
   } finally {
     await prisma.$disconnect()
+    if (hasError) {
+      process.exit(1)
+    }
   }
 }
 
