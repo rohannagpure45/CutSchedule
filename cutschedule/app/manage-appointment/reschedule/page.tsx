@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { BookingForm } from "@/components/booking/BookingForm"
 import { Button } from "@/components/ui/button"
@@ -38,9 +38,9 @@ function RescheduleContent() {
       setError("No appointment ID provided")
       setLoading(false)
     }
-  }, [appointmentId])
+  }, [appointmentId, fetchAppointment])
 
-  const fetchAppointment = async () => {
+  const fetchAppointment = useCallback(async () => {
     try {
       const response = await fetch(`/api/appointments/${appointmentId}`)
 
@@ -56,7 +56,7 @@ function RescheduleContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [appointmentId])
 
   const handleReschedule = async (data: AppointmentBookingData) => {
     if (!appointmentId) return
