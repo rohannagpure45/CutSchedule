@@ -28,11 +28,34 @@ const handler = NextAuth({
         return false
       }
 
-      // Remove fields that Prisma doesn't recognize from Google OAuth response
-      // Google returns 'refresh_token_expires_in' which breaks PrismaAdapter
-      if (account && 'refresh_token_expires_in' in account) {
-        delete (account as any).refresh_token_expires_in
-        console.log('Removed refresh_token_expires_in from account object')
+      // Log account object to see what fields Google is returning
+      if (account) {
+        console.log('Account object keys:', Object.keys(account))
+
+        // Remove fields that Prisma doesn't recognize from Google OAuth response
+        // Google returns 'refresh_token_expires_in' which breaks PrismaAdapter
+        if ('refresh_token_expires_in' in account) {
+          delete (account as any).refresh_token_expires_in
+          console.log('Removed refresh_token_expires_in from account object')
+        }
+
+        // Remove any other non-standard fields that might break Prisma
+        const validAccountFields = [
+          'provider', 'type', 'providerAccountId', 'access_token',
+          'expires_at', 'refresh_token', 'scope', 'token_type',
+          'id_token', 'session_state', 'userId'
+        ]
+
+        const accountKeys = Object.keys(account)
+        const invalidFields = accountKeys.filter(key => !validAccountFields.includes(key))
+
+        if (invalidFields.length > 0) {
+          console.log('Found invalid fields in account object:', invalidFields)
+          invalidFields.forEach(field => {
+            delete (account as any)[field]
+            console.log(`Removed ${field} from account object`)
+          })
+        }
       }
 
       // Update admin record only - User will be created by PrismaAdapter after signIn succeeds
