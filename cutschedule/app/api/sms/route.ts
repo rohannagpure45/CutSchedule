@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { sendSMS } from '@/lib/sms'
 import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 
 export async function GET(request: NextRequest) {
   try {
     // Get session to verify admin access
-    const session = await getServerSession()
+    const session = await getServerSession(authOptions)
     if (!session?.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Get session to verify admin access
-    const session = await getServerSession()
+    const session = await getServerSession(authOptions)
     if (!session?.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
       return NextResponse.json(
         { error: 'Unauthorized' },

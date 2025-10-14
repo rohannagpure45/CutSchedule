@@ -135,8 +135,9 @@ export default function AppointmentsPage() {
   const autoCompletePastAppointments = async (appointmentsList: Appointment[]) => {
     const today = startOfDay(new Date())
     const pastConfirmedAppointments = appointmentsList.filter(apt => {
-      const appointmentDate = startOfDay(parseISO(apt.date))
-      return apt.status === 'confirmed' && appointmentDate < today
+      // Consider appointments that ended before today as past
+      const appointmentEnd = parseISO(apt.endTime)
+      return apt.status === 'confirmed' && appointmentEnd < today
     })
 
     if (pastConfirmedAppointments.length === 0) return
@@ -329,7 +330,15 @@ export default function AppointmentsPage() {
     }
   }
 
-  const unsyncedCount = appointments.filter(apt => !apt.googleEventId && apt.status === 'confirmed').length
+  const unsyncedCount = appointments.filter(apt => {
+    if (apt.googleEventId) return false
+    if (apt.status !== 'confirmed') return false
+    try {
+      return parseISO(apt.startTime) >= new Date()
+    } catch {
+      return false
+    }
+  }).length
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -462,7 +471,7 @@ export default function AppointmentsPage() {
                         <TableCell>
                           <div>
                             <div className="font-medium">
-                              {format(parseISO(appointment.date), 'MMM d, yyyy')}
+                              {format(parseISO(appointment.startTime), 'MMM d, yyyy')}
                             </div>
                             <div className="text-sm text-gray-500">
                               {format(parseISO(appointment.startTime), 'h:mm a')} - {format(parseISO(appointment.endTime), 'h:mm a')}
@@ -545,7 +554,7 @@ export default function AppointmentsPage() {
           {selectedAppointment && (
             <div className="space-y-2 py-4">
               <p><strong>Client:</strong> {selectedAppointment.clientName}</p>
-              <p><strong>Date:</strong> {format(parseISO(selectedAppointment.date), 'MMMM d, yyyy')}</p>
+              <p><strong>Date:</strong> {format(parseISO(selectedAppointment.startTime), 'MMMM d, yyyy')}</p>
               <p><strong>Time:</strong> {format(parseISO(selectedAppointment.startTime), 'h:mm a')}</p>
             </div>
           )}

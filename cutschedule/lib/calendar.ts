@@ -43,18 +43,28 @@ async function getGoogleCalendarClient() {
       expiry_date: account.expires_at ? account.expires_at * 1000 : undefined,
     })
 
-    // Auto-refresh token if needed
+    // Auto-refresh token if needed; persist any updated fields
     oauth2Client.on('tokens', async (tokens) => {
-      if (tokens.refresh_token) {
-        // Update the refresh token in database
-        await prisma.account.update({
-          where: { id: account.id },
-          data: {
-            refresh_token: tokens.refresh_token,
-            access_token: tokens.access_token,
-            expires_at: tokens.expiry_date ? Math.floor(tokens.expiry_date / 1000) : null,
-          },
-        })
+      try {
+        const data: any = {}
+        if (typeof tokens.refresh_token === 'string') {
+          data.refresh_token = tokens.refresh_token
+        }
+        if (typeof tokens.access_token === 'string') {
+          data.access_token = tokens.access_token
+        }
+        if (typeof tokens.expiry_date === 'number') {
+          data.expires_at = Math.floor(tokens.expiry_date / 1000)
+        }
+
+        if (Object.keys(data).length > 0) {
+          await prisma.account.update({
+            where: { id: account.id },
+            data,
+          })
+        }
+      } catch (e) {
+        console.error('Failed to persist refreshed Google tokens:', e)
       }
     })
 
