@@ -28,68 +28,71 @@ const handler = NextAuth({
         return false
       }
 
-      // Update admin and user records
+      // Update admin and user records atomically in a transaction
+      // Retry entire transaction from outside to avoid holding DB locks during backoff
       if (account?.provider === 'google' && user.email && user.id) {
-        try {
-          const userEmail = user.email
-          const userName = user.name || 'Admin User'
-          const userId = user.id
+        const userEmail = user.email
+        const userName = user.name || 'Admin User'
+        const userId = user.id
 
-          // Handle Admin record
-          let adminId: string
-          const admin = await prisma.admin.findUnique({
-            where: { email: userEmail },
-          })
+        const maxRetries = 3
+        const baseDelayMs = 50
 
-          if (!admin) {
-            console.log('Creating new admin record for:', userEmail)
-            const newAdmin = await prisma.admin.create({
-              data: {
-                email: userEmail,
-                googleId: account.providerAccountId,
-                name: userName,
-              },
-            })
-            adminId = newAdmin.id
-          } else if (admin.googleId === 'pending-first-login') {
-            // Update Google ID on first login
-            await prisma.admin.update({
-              where: { email: userEmail },
-              data: {
-                googleId: account.providerAccountId,
-                name: userName || admin.name,
-              },
-            })
-            adminId = admin.id
-          } else {
-            adminId = admin.id
-          }
-
-          // Update User record with adminId (retry once if not found)
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
           try {
-            await prisma.user.update({
-              where: { id: userId },
-              data: { adminId },
-            })
-          } catch (userUpdateError: any) {
-            // User might not be created yet, wait and retry once
-            if (userUpdateError?.code === 'P2025') {
-              console.log('User not found, retrying after short delay...')
-              await new Promise(resolve => setTimeout(resolve, 100))
-              await prisma.user.update({
+            await prisma.$transaction(async (tx) => {
+              // Atomically upsert Admin record - single DB call prevents race conditions
+              // Always update googleId on sign-in since user is actively authenticating
+              const admin = await tx.admin.upsert({
+                where: { email: userEmail },
+                create: {
+                  email: userEmail,
+                  googleId: account.providerAccountId,
+                  name: userName,
+                },
+                update: {
+                  googleId: account.providerAccountId,
+                  name: userName,
+                },
+              })
+
+              const adminId = admin.id
+              console.log('Admin record upserted for:', userEmail)
+
+              // Update User record with adminId
+              // This may fail with P2025 if PrismaAdapter hasn't created User yet
+              await tx.user.update({
                 where: { id: userId },
                 data: { adminId },
               })
+            })
+
+            // Transaction succeeded - exit retry loop
+            console.log('Successfully linked admin and user records in transaction')
+            break
+
+          } catch (error: any) {
+            // Transaction automatically rolled back
+            // P2025 = Record not found (User might not be created by PrismaAdapter yet)
+            if (error?.code === 'P2025') {
+              if (attempt < maxRetries) {
+                // Backoff delay OUTSIDE the transaction to avoid holding locks
+                const delayMs = baseDelayMs * Math.pow(2, attempt)
+                console.log(`User not found (attempt ${attempt + 1}/${maxRetries + 1}), retrying after ${delayMs}ms...`)
+                await new Promise(resolve => setTimeout(resolve, delayMs))
+                // Continue to next attempt with fresh transaction
+              } else {
+                // Retries exhausted
+                console.error(`User update failed after ${maxRetries + 1} attempts`)
+                console.error('Transaction failed - admin/user records not updated:', error)
+                return false
+              }
             } else {
-              throw userUpdateError
+              // Non-P2025 error - fail immediately
+              console.error('Transaction failed - admin/user records not updated:', error)
+              return false
             }
           }
-
-          console.log('Successfully linked admin and user records')
-        } catch (error) {
-          console.error('Error updating admin/user records:', error)
-          // Prevent sign-in if updates fail to avoid inconsistent state
-          return false
         }
       }
 
