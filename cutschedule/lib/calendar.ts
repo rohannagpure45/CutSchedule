@@ -5,17 +5,28 @@ import { prisma } from '@/lib/db'
 async function getGoogleCalendarClient() {
   try {
     // Get the admin's account with OAuth tokens
+    // Must join with User table to ensure we get the correct admin account
     const account = await prisma.account.findFirst({
       where: {
         provider: 'google',
+        user: {
+          email: process.env.ADMIN_EMAIL,
+        },
+      },
+      include: {
+        user: true,
       },
       orderBy: {
-        id: 'desc', // Get the most recent account
+        id: 'desc', // Get the most recent account for this admin
       },
     })
 
     if (!account || !account.access_token) {
-      throw new Error('No Google account found with access token')
+      const errorMessage = !account
+        ? `No Google account found for admin (${process.env.ADMIN_EMAIL}). Admin must sign in with Google first.`
+        : 'Google account found but missing access token'
+      console.error('Calendar client initialization failed:', errorMessage)
+      throw new Error(errorMessage)
     }
 
     // Create OAuth2 client

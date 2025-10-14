@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowLeft, Search, Calendar, Phone, User, Clock, X, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Search, Calendar, Phone, User, Clock, X, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { format, parseISO, startOfDay } from 'date-fns'
 import { useToast } from '@/hooks/use-toast'
 
@@ -42,6 +42,7 @@ interface Appointment {
   startTime: string
   endTime: string
   status: string
+  googleEventId: string | null
   createdAt: string
 }
 
@@ -56,6 +57,7 @@ export default function AppointmentsPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     // Don't wait for session, just fetch appointments immediately
@@ -241,6 +243,44 @@ export default function AppointmentsPage() {
     }
   }
 
+  const handleSyncToCalendar = async () => {
+    setSyncing(true)
+    try {
+      const response = await fetch('/api/admin/sync-calendar', {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        toast({
+          title: 'Success',
+          description: data.message || 'Appointments synced to calendar'
+        })
+
+        // Refresh appointments to get updated googleEventId
+        await fetchAppointments()
+      } else {
+        toast({
+          title: 'Sync Failed',
+          description: data.error || data.message || 'Failed to sync appointments',
+          variant: 'destructive'
+        })
+      }
+    } catch (error) {
+      console.error('Error syncing to calendar:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to sync appointments to calendar',
+        variant: 'destructive'
+      })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const unsyncedCount = appointments.filter(apt => !apt.googleEventId && apt.status === 'confirmed').length
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'confirmed':
@@ -279,6 +319,34 @@ export default function AppointmentsPage() {
               <p className="text-gray-600">Manage all appointments</p>
             </div>
           </div>
+          <Button
+            onClick={handleSyncToCalendar}
+            disabled={syncing}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            {syncing ? (
+              <>
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <span>Syncing...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M19 4H18V2H16V4H8V2H6V4H5C3.89 4 3.01 4.9 3.01 6L3 20C3 21.1 3.89 22 5 22H19C20.1 22 21 21.1 21 20V6C21 4.9 20.1 4 19 4ZM19 20H5V10H19V20ZM19 8H5V6H19V8Z" fill="#4285F4"/>
+                  <path d="M12 13H17V18H12V13Z" fill="#EA4335"/>
+                  <path d="M7 13H11V18H7V13Z" fill="#34A853"/>
+                  <path d="M12 13H11V12H12V13Z" fill="#FBBC04"/>
+                </svg>
+                <span>Sync to Google Calendar</span>
+                {unsyncedCount > 0 && (
+                  <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {unsyncedCount}
+                  </span>
+                )}
+              </>
+            )}
+          </Button>
         </div>
 
         <Card className="mb-6">
@@ -334,6 +402,7 @@ export default function AppointmentsPage() {
                       <TableHead>Client</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Calendar</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -363,6 +432,19 @@ export default function AppointmentsPage() {
                           </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(appointment.status)}</TableCell>
+                        <TableCell>
+                          {appointment.googleEventId ? (
+                            <div className="flex items-center gap-2 text-green-600" title="Synced to Google Calendar">
+                              <CheckCircle className="w-4 h-4" />
+                              <span className="text-sm">Synced</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-amber-600" title="Not synced to Google Calendar">
+                              <AlertCircle className="w-4 h-4" />
+                              <span className="text-sm">Not Synced</span>
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
                             {appointment.status === 'confirmed' && (
