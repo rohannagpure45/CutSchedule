@@ -74,29 +74,32 @@ export const authOptions: NextAuthOptions = {
         const userEmail = user.email
         const userName = user.name || 'Admin User'
         try {
-          const admin = await prisma.admin.upsert({
-            where: { email: userEmail },
-            create: {
-              email: userEmail,
-              googleId: account.providerAccountId,
-              name: userName,
-            },
-            update: {
-              googleId: account.providerAccountId,
-              name: userName,
-            },
-          })
-          console.log('Admin record upserted for:', userEmail, 'with ID:', admin.id)
-          // Link User to Admin immediately to avoid race conditions in session callback
-          if (user.id) {
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { adminId: admin.id },
+          // Ensure Admin record exists; avoid unnecessary upserts
+          const existingAdmin = await prisma.admin.findUnique({ where: { email: userEmail } })
+          if (!existingAdmin) {
+            const created = await prisma.admin.create({
+              data: {
+                email: userEmail,
+                googleId: account.providerAccountId,
+                name: userName,
+              },
             })
-            console.log('Linked User to Admin during sign-in')
+            console.log('Admin record created for:', userEmail, 'with ID:', created.id)
+          } else if (
+            existingAdmin.googleId !== account.providerAccountId ||
+            existingAdmin.name !== userName
+          ) {
+            await prisma.admin.update({
+              where: { email: userEmail },
+              data: {
+                googleId: account.providerAccountId,
+                name: userName,
+              },
+            })
+            console.log('Admin record updated for:', userEmail)
           }
         } catch (error) {
-          console.error('Failed to upsert admin record:', error)
+          console.error('Failed to ensure admin record:', error)
           return false
         }
       }
@@ -113,7 +116,29 @@ export const authOptions: NextAuthOptions = {
         session.user.id = user.id
         session.user.isAdmin = user.email ? user.email === process.env.ADMIN_EMAIL : false
 
-        session.user.adminId = user.adminId ?? undefined
+        // Ensure User is linked to Admin once the User record exists
+        if (!session.user.adminId) {
+          try {
+            const admin = user.email
+              ? await prisma.admin.findUnique({ where: { email: user.email } })
+              : null
+            if (admin) {
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { adminId: admin.id },
+              })
+              session.user.adminId = admin.id
+              console.log('Linked User to Admin in session callback')
+            } else {
+              session.user.adminId = user.adminId ?? undefined
+            }
+          } catch (error) {
+            console.error('Failed to link User to Admin in session:', error)
+            session.user.adminId = user.adminId ?? undefined
+          }
+        } else {
+          session.user.adminId = user.adminId ?? undefined
+        }
       }
 
       if (process.env.NODE_ENV === 'development') {
