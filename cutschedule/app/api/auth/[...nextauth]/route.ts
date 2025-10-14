@@ -31,30 +31,34 @@ const handler = NextAuth({
       // Update admin and user records atomically in a transaction
       if (account?.provider === 'google' && user.email && user.id) {
         try {
+          const userEmail = user.email
+          const userName = user.name || 'Admin User'
+          const userId = user.id
+
           await prisma.$transaction(async (tx) => {
             const admin = await tx.admin.findUnique({
-              where: { email: user.email },
+              where: { email: userEmail },
             })
 
             let adminId: string
 
             if (!admin) {
-              console.log('Creating new admin record for:', user.email)
+              console.log('Creating new admin record for:', userEmail)
               const newAdmin = await tx.admin.create({
                 data: {
-                  email: user.email,
+                  email: userEmail,
                   googleId: account.providerAccountId,
-                  name: user.name || 'Admin User',
+                  name: userName,
                 },
               })
               adminId = newAdmin.id
             } else if (admin.googleId === 'pending-first-login') {
               // Update Google ID on first login
               await tx.admin.update({
-                where: { email: user.email },
+                where: { email: userEmail },
                 data: {
                   googleId: account.providerAccountId,
-                  name: user.name || admin.name,
+                  name: userName || admin.name,
                 },
               })
               adminId = admin.id
@@ -64,7 +68,7 @@ const handler = NextAuth({
 
             // Update User record with adminId for fast session lookups
             await tx.user.update({
-              where: { id: user.id },
+              where: { id: userId },
               data: { adminId },
             })
           })
