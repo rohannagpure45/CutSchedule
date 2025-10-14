@@ -28,53 +28,67 @@ const handler = NextAuth({
         return false
       }
 
-      // Update admin and user records atomically in a transaction
+      // Update admin and user records
       if (account?.provider === 'google' && user.email && user.id) {
         try {
           const userEmail = user.email
           const userName = user.name || 'Admin User'
           const userId = user.id
 
-          await prisma.$transaction(async (tx) => {
-            const admin = await tx.admin.findUnique({
-              where: { email: userEmail },
+          // Handle Admin record
+          let adminId: string
+          const admin = await prisma.admin.findUnique({
+            where: { email: userEmail },
+          })
+
+          if (!admin) {
+            console.log('Creating new admin record for:', userEmail)
+            const newAdmin = await prisma.admin.create({
+              data: {
+                email: userEmail,
+                googleId: account.providerAccountId,
+                name: userName,
+              },
             })
+            adminId = newAdmin.id
+          } else if (admin.googleId === 'pending-first-login') {
+            // Update Google ID on first login
+            await prisma.admin.update({
+              where: { email: userEmail },
+              data: {
+                googleId: account.providerAccountId,
+                name: userName || admin.name,
+              },
+            })
+            adminId = admin.id
+          } else {
+            adminId = admin.id
+          }
 
-            let adminId: string
-
-            if (!admin) {
-              console.log('Creating new admin record for:', userEmail)
-              const newAdmin = await tx.admin.create({
-                data: {
-                  email: userEmail,
-                  googleId: account.providerAccountId,
-                  name: userName,
-                },
-              })
-              adminId = newAdmin.id
-            } else if (admin.googleId === 'pending-first-login') {
-              // Update Google ID on first login
-              await tx.admin.update({
-                where: { email: userEmail },
-                data: {
-                  googleId: account.providerAccountId,
-                  name: userName || admin.name,
-                },
-              })
-              adminId = admin.id
-            } else {
-              adminId = admin.id
-            }
-
-            // Update User record with adminId for fast session lookups
-            await tx.user.update({
+          // Update User record with adminId (retry once if not found)
+          try {
+            await prisma.user.update({
               where: { id: userId },
               data: { adminId },
             })
-          })
+          } catch (userUpdateError: any) {
+            // User might not be created yet, wait and retry once
+            if (userUpdateError?.code === 'P2025') {
+              console.log('User not found, retrying after short delay...')
+              await new Promise(resolve => setTimeout(resolve, 100))
+              await prisma.user.update({
+                where: { id: userId },
+                data: { adminId },
+              })
+            } else {
+              throw userUpdateError
+            }
+          }
+
+          console.log('Successfully linked admin and user records')
         } catch (error) {
-          console.error('Error updating admin/user records in transaction:', error)
-          // Prevent sign-in if transaction fails to avoid inconsistent state
+          console.error('Error updating admin/user records:', error)
+          // Prevent sign-in if updates fail to avoid inconsistent state
           return false
         }
       }
