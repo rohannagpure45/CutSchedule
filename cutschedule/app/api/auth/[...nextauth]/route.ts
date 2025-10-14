@@ -28,6 +28,13 @@ const handler = NextAuth({
         return false
       }
 
+      // Remove fields that Prisma doesn't recognize from Google OAuth response
+      // Google returns 'refresh_token_expires_in' which breaks PrismaAdapter
+      if (account && 'refresh_token_expires_in' in account) {
+        delete (account as any).refresh_token_expires_in
+        console.log('Removed refresh_token_expires_in from account object')
+      }
+
       // Update admin record only - User will be created by PrismaAdapter after signIn succeeds
       if (account?.provider === 'google' && user.email) {
         const userEmail = user.email
