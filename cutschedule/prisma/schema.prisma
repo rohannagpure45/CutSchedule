@@ -100,6 +100,7 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
+  adminId       String?   // Reference to Admin.id for admin users
   accounts      Account[]
   sessions      Session[]
 }

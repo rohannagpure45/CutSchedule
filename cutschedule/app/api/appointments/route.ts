@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { appointmentBookingSchema, normalizePhoneNumber } from '@/lib/utils/validation'
-import { combineDateTime } from '@/lib/utils/dates'
+import { combineDateTime, parseDateInLocalTimezone } from '@/lib/utils/dates'
 import { addMinutes, startOfDay, endOfDay } from 'date-fns'
 import { APP_CONFIG } from '@/lib/constants'
 import { sendConfirmationSMS } from '@/lib/sms'
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (date) {
-      const targetDate = new Date(date)
+      const targetDate = parseDateInLocalTimezone(date)
       where.date = {
         gte: startOfDay(targetDate),
         lte: endOfDay(targetDate),
@@ -83,8 +83,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse date and time
-    const appointmentDate = new Date(validatedData.date)
+    // Parse date and time in local timezone to avoid UTC conversion issues
+    const appointmentDate = parseDateInLocalTimezone(validatedData.date)
     const startTime = combineDateTime(validatedData.date, validatedData.time)
     const endTime = addMinutes(startTime, APP_CONFIG.APPOINTMENT_DURATION)
 

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { startOfDay, endOfDay, format, addMinutes, isWithinInterval } from 'date-fns'
 import { availabilityQuerySchema } from '@/lib/utils/validation'
 import { APP_CONFIG } from '@/lib/constants'
+import { parseDateInLocalTimezone } from '@/lib/utils/dates'
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     // Validate date format
     const validatedQuery = availabilityQuerySchema.parse({ date: dateStr })
-    const date = new Date(validatedQuery.date)
+    const date = parseDateInLocalTimezone(validatedQuery.date)
 
     // Check if the date is in the past
     const today = new Date()

@@ -19,6 +19,16 @@ export function parseTime(timeString: string): Date {
   return date
 }
 
+export function parseDateInLocalTimezone(dateString: string): Date {
+  // Parse the date string as YYYY-MM-DD in local timezone
+  // This prevents the date from being interpreted as UTC midnight
+  const [year, month, day] = dateString.split('-').map(Number)
+
+  // Create date at midnight in local timezone
+  const date = new Date(year, month - 1, day, 0, 0, 0, 0)
+  return date
+}
+
 export function combineDateTime(dateString: string, timeString: string): Date {
   // Parse the date string as YYYY-MM-DD
   const [year, month, day] = dateString.split('-').map(Number)

@@ -35,15 +35,18 @@ const handler = NextAuth({
             where: { email: user.email },
           })
 
+          let adminId: string | undefined
+
           if (!admin) {
             console.log('Creating new admin record for:', user.email)
-            await prisma.admin.create({
+            const newAdmin = await prisma.admin.create({
               data: {
                 email: user.email,
                 googleId: account.providerAccountId,
                 name: user.name || 'Admin User',
               },
             })
+            adminId = newAdmin.id
           } else if (admin.googleId === 'pending-first-login') {
             // Update Google ID on first login
             await prisma.admin.update({
@@ -52,6 +55,17 @@ const handler = NextAuth({
                 googleId: account.providerAccountId,
                 name: user.name || admin.name,
               },
+            })
+            adminId = admin.id
+          } else {
+            adminId = admin.id
+          }
+
+          // Update User record with adminId for fast session lookups
+          if (adminId && user.id) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { adminId },
             })
           }
         } catch (error) {
@@ -77,19 +91,8 @@ const handler = NextAuth({
       if (user && session.user) {
         session.user.id = user.id
         session.user.isAdmin = user.email === process.env.ADMIN_EMAIL
-
-        // Get admin ID from Admin table
-        // Note: With database session strategy, this runs on every session check.
-        // Consider storing adminId in User table for better performance if needed.
-        try {
-          const admin = await prisma.admin.findUnique({
-            where: { email: user.email ?? undefined },
-          })
-          session.user.adminId = admin?.id
-        } catch (error) {
-          console.error('Error fetching admin ID:', error)
-          session.user.adminId = undefined
-        }
+        // Read adminId directly from User record (populated at sign-in)
+        session.user.adminId = user.adminId ?? undefined
       }
 
       // Debug logging in development

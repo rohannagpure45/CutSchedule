@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { appointmentUpdateSchema } from '@/lib/utils/validation'
-import { combineDateTime } from '@/lib/utils/dates'
+import { combineDateTime, parseDateInLocalTimezone } from '@/lib/utils/dates'
 import { addMinutes, startOfDay, endOfDay } from 'date-fns'
 import { APP_CONFIG } from '@/lib/constants'
 import { sendCancellationSMS, sendConfirmationSMS } from '@/lib/sms'
@@ -66,7 +66,7 @@ export async function PATCH(
 
     // If rescheduling (updating date/time)
     if (validatedData.date && validatedData.time) {
-      const newDate = new Date(validatedData.date)
+      const newDate = parseDateInLocalTimezone(validatedData.date)
       const newStartTime = combineDateTime(validatedData.date, validatedData.time)
       const newEndTime = addMinutes(newStartTime, APP_CONFIG.APPOINTMENT_DURATION)
 
