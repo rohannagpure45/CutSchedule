@@ -31,15 +31,6 @@ function RescheduleContent() {
   const [rescheduling, setRescheduling] = useState(false)
   const [rescheduleError, setRescheduleError] = useState<string>("")
 
-  useEffect(() => {
-    if (appointmentId) {
-      fetchAppointment()
-    } else {
-      setError("No appointment ID provided")
-      setLoading(false)
-    }
-  }, [appointmentId, fetchAppointment])
-
   const fetchAppointment = useCallback(async () => {
     try {
       const response = await fetch(`/api/appointments/${appointmentId}`)
@@ -57,6 +48,17 @@ function RescheduleContent() {
       setLoading(false)
     }
   }, [appointmentId])
+
+  useEffect(() => {
+    if (appointmentId) {
+      fetchAppointment()
+    } else {
+      setError("No appointment ID provided")
+      setLoading(false)
+    }
+  }, [appointmentId, fetchAppointment])
+
+  
 
   const handleReschedule = async (data: AppointmentBookingData) => {
     if (!appointmentId) return
