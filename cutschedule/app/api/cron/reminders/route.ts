@@ -65,40 +65,25 @@ export async function GET(request: NextRequest) {
     if (shouldRunDailyTasks) {
       console.log('[Auto-complete] Starting auto-completion of past confirmed appointments')
 
-      // Find all confirmed appointments that have already ended
-      const pastConfirmedAppointments = await prisma.appointment.findMany({
-        where: {
-          status: 'confirmed',
-          endTime: {
-            lt: nowUTC, // Ended before now
+      // Update all confirmed appointments that have already ended in a single batch operation
+      try {
+        const updateResult = await prisma.appointment.updateMany({
+          where: {
+            status: 'confirmed',
+            endTime: {
+              lt: nowUTC, // Ended before now
+            },
           },
-        },
-        select: { id: true, clientName: true, endTime: true },
-      })
+          data: {
+            status: 'completed',
+          },
+        })
 
-      console.log(`[Auto-complete] Found ${pastConfirmedAppointments.length} past confirmed appointments to mark as completed`)
-
-      if (pastConfirmedAppointments.length > 0) {
-        // Update all in a single batch operation
-        try {
-          const updateResult = await prisma.appointment.updateMany({
-            where: {
-              status: 'confirmed',
-              endTime: {
-                lt: nowUTC,
-              },
-            },
-            data: {
-              status: 'completed',
-            },
-          })
-
-          results.autoCompletedAppointments = updateResult.count
-          console.log(`[Auto-complete] Successfully marked ${updateResult.count} appointments as completed`)
-        } catch (error: any) {
-          console.error('[Auto-complete] Error updating appointments:', error)
-          results.errors.push(`Auto-complete failed: ${error.message}`)
-        }
+        results.autoCompletedAppointments = updateResult.count
+        console.log(`[Auto-complete] Successfully marked ${updateResult.count} appointments as completed`)
+      } catch (error: any) {
+        console.error('[Auto-complete] Error updating appointments:', error)
+        results.errors.push(`Auto-complete failed: ${error.message}`)
       }
     }
 
