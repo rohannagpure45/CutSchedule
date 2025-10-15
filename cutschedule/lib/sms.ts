@@ -3,6 +3,34 @@ import { prisma } from '@/lib/db'
 const twilio = require('twilio')
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
 
+// Format phone number to E.164 format (+1XXXXXXXXXX)
+export function formatPhoneNumber(phoneNumber: string): string {
+  // Remove all non-digit characters
+  const cleaned = phoneNumber.replace(/\D/g, '')
+
+  // Valid US phone number formats
+  if (cleaned.length === 10) {
+    // US number without country code
+    return `+1${cleaned}`
+  } else if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    // US number with country code
+    return `+${cleaned}`
+  }
+
+  // All other cases are invalid
+  // Log detailed warning with both original input and cleaned digits
+  console.warn(`Invalid phone number format: Original input="${phoneNumber}", Cleaned digits="${cleaned}" (${cleaned.length} digits)`)
+
+  // Invalid cases include:
+  // - Length < 10 digits
+  // - Length > 11 digits
+  // - Length === 11 but not starting with '1'
+
+  // Return the original phoneNumber to not silently accept invalid inputs
+  // Callers can check if the return value starts with '+' to validate success
+  return phoneNumber
+}
+
 export interface SMSTemplate {
   confirmation: string
   reminder_1day: string
@@ -39,6 +67,9 @@ export async function sendSMS(
   data: SMSData
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
+    // Format phone number to ensure consistency
+    const formattedPhone = formatPhoneNumber(phoneNumber)
+
     // Get template and replace placeholders
     let message = SMS_TEMPLATES[messageType]
     message = message.replace('{clientName}', data.clientName)
@@ -46,13 +77,13 @@ export async function sendSMS(
     message = message.replace('{time}', data.time)
     message = message.replace('{appointmentId}', data.appointmentId || '')
 
-    console.log(`Sending ${messageType} SMS to ${phoneNumber}:`, message)
+    console.log(`Sending ${messageType} SMS to ${formattedPhone} (original: ${phoneNumber}):`, message)
 
     // Send SMS via Twilio
     const twilioMessage = await client.messages.create({
       body: message,
       messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID,
-      to: phoneNumber,
+      to: formattedPhone,
     })
 
     console.log('SMS sent successfully:', twilioMessage.sid)

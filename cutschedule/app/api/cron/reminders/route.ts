@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { sendReminderSMS, sendSMS } from '@/lib/sms'
-import { addDays, addHours, startOfDay, endOfDay, subWeeks, format } from 'date-fns'
+import { addDays, addHours, startOfDay, endOfDay, subWeeks, format, addMinutes } from 'date-fns'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 
 // Configure function timeout for Vercel
 export const maxDuration = 30
+
+// Business timezone - all appointment times are in this timezone
+const BUSINESS_TZ = 'America/New_York'
 
 // Verify the request is from a legitimate cron service
 function verifyCronAuth(request: NextRequest) {
@@ -29,7 +33,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const now = new Date()
+    const nowUTC = new Date()
+    const nowBusiness = toZonedTime(nowUTC, BUSINESS_TZ)
+
     const results = {
       oneDayReminders: 0,
       oneHourReminders: 0,
@@ -38,22 +44,37 @@ export async function GET(request: NextRequest) {
     }
 
     // Determine if we should run daily tasks (expensive operations)
-    // Only run once per day at 1 PM to reduce costs
-    // Use tolerance to account for cron drift or scheduling variations
-    const currentHour = now.getHours()
-    const currentMinute = now.getMinutes()
-    const MINUTE_TOLERANCE = 5 // Allow 5-minute window to account for drift
-    const shouldRunDailyTasks = currentHour === 13 && Math.abs(currentMinute - 0) <= MINUTE_TOLERANCE
+    // Cron runs at 13:00 UTC which is 8 AM EST or 9 AM EDT
+    // We want to run daily tasks once in the morning
+    const businessHour = nowBusiness.getHours()
+    const businessMinute = nowBusiness.getMinutes()
+
+    // Run daily tasks between 8-10 AM business time (covers both EST and EDT)
+    const shouldRunDailyTasks = businessHour === 8 || (businessHour === 9 && businessMinute < 30)
+
+    if (!shouldRunDailyTasks) {
+      console.log(`[Skip Daily Tasks] Business time ${businessHour}:${businessMinute.toString().padStart(2, '0')} (${BUSINESS_TZ}) outside 8:00-9:30 window`)
+    } else {
+      console.log(`[Running Daily Tasks] Business time ${businessHour}:${businessMinute.toString().padStart(2, '0')} (${BUSINESS_TZ})`)
+    }
 
     // 1. Send 1-day reminders (DAILY TASK - runs once per day)
     if (shouldRunDailyTasks) {
-      const tomorrow = addDays(now, 1)
+      // Calculate tomorrow in business timezone
+      const tomorrowBusiness = addDays(nowBusiness, 1)
+      const tomorrowStartBusiness = startOfDay(tomorrowBusiness)
+      const tomorrowEndBusiness = endOfDay(tomorrowBusiness)
+
+      // Convert to UTC for database query
+      const tomorrowStartUTC = fromZonedTime(tomorrowStartBusiness, BUSINESS_TZ)
+      const tomorrowEndUTC = fromZonedTime(tomorrowEndBusiness, BUSINESS_TZ)
+
       const oneDayAppointments = await prisma.appointment.findMany({
         where: {
           status: 'confirmed',
           date: {
-            gte: startOfDay(tomorrow),
-            lte: endOfDay(tomorrow),
+            gte: tomorrowStartUTC,
+            lte: tomorrowEndUTC,
           },
         },
       })
@@ -104,13 +125,16 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Send 1-hour reminders (TIME-SENSITIVE - runs every 30 minutes)
-    const oneHourLater = addHours(now, 1)
+    // Check for appointments 55-65 minutes in the future (tighter window to avoid duplicates)
+    const reminderWindowStart = addMinutes(nowUTC, 55)
+    const reminderWindowEnd = addMinutes(nowUTC, 65)
+
     const oneHourAppointments = await prisma.appointment.findMany({
       where: {
         status: 'confirmed',
         startTime: {
-          gte: addHours(oneHourLater, -0.25), // 15 minutes before
-          lte: addHours(oneHourLater, 0.25),  // 15 minutes after
+          gte: reminderWindowStart,
+          lte: reminderWindowEnd,
         },
       },
     })
@@ -161,17 +185,23 @@ export async function GET(request: NextRequest) {
 
     // 3. Send re-engagement messages (DAILY TASK - runs once per day)
     if (shouldRunDailyTasks) {
-      // Find customers whose last appointment was 2 weeks ago
-      const twoWeeksAgo = subWeeks(now, 2)
-      const threeWeeksAgo = subWeeks(now, 3)
+      // Find customers whose last appointment was 2 or 3 weeks ago (in business timezone)
+      const twoWeeksAgoBusiness = subWeeks(nowBusiness, 2)
+      const threeWeeksAgoBusiness = subWeeks(nowBusiness, 3)
+
+      // Convert to UTC for database queries
+      const twoWeeksAgoStartUTC = fromZonedTime(startOfDay(twoWeeksAgoBusiness), BUSINESS_TZ)
+      const twoWeeksAgoEndUTC = fromZonedTime(endOfDay(twoWeeksAgoBusiness), BUSINESS_TZ)
+      const threeWeeksAgoStartUTC = fromZonedTime(startOfDay(threeWeeksAgoBusiness), BUSINESS_TZ)
+      const threeWeeksAgoEndUTC = fromZonedTime(endOfDay(threeWeeksAgoBusiness), BUSINESS_TZ)
 
       // Get customers who had their last appointment 2 weeks ago
       const reEngagementCandidates = await prisma.appointment.findMany({
         where: {
           status: 'completed',
           endTime: {
-            gte: startOfDay(twoWeeksAgo),
-            lte: endOfDay(twoWeeksAgo),
+            gte: twoWeeksAgoStartUTC,
+            lte: twoWeeksAgoEndUTC,
           },
         },
         distinct: ['phoneNumber'],
@@ -184,8 +214,8 @@ export async function GET(request: NextRequest) {
         where: {
           status: 'completed',
           endTime: {
-            gte: startOfDay(threeWeeksAgo),
-            lte: endOfDay(threeWeeksAgo),
+            gte: threeWeeksAgoStartUTC,
+            lte: threeWeeksAgoEndUTC,
           },
         },
         distinct: ['phoneNumber'],
@@ -217,28 +247,22 @@ export async function GET(request: NextRequest) {
         const phoneNumbersWithFutureAppointments = new Set<string>()
         const phoneNumbersWithRecentMessages = new Set<string>()
 
-        // Batch fetch future appointments
-        for (let i = 0; i < phoneNumbers.length; i += BATCH_SIZE) {
-          const batch = phoneNumbers.slice(i, i + BATCH_SIZE)
-          const batchData = batch.map(phone => phoneNumberMap.get(phone)!)
+        // Batch query for customers with future appointments (scheduled in the future)
+        const futureAppointments = await prisma.appointment.findMany({
+          where: {
+            phoneNumber: { in: phoneNumbers },
+            OR: [
+              { date: { gt: nowUTC } },
+              { startTime: { gt: nowUTC } }
+            ]
+          },
+          select: { phoneNumber: true },
+          distinct: ['phoneNumber']
+        })
 
-          const futureAppointments = await prisma.appointment.findMany({
-            where: {
-              phoneNumber: { in: batch },
-              createdAt: {
-                gt: new Date(Math.min(...batchData.map(d => d.createdAt.getTime()))),
-              },
-            },
-            select: { phoneNumber: true, createdAt: true },
-          })
-
-          futureAppointments.forEach(apt => {
-            const candidateData = phoneNumberMap.get(apt.phoneNumber)
-            if (candidateData && apt.createdAt > candidateData.createdAt) {
-              phoneNumbersWithFutureAppointments.add(apt.phoneNumber)
-            }
-          })
-        }
+        futureAppointments.forEach(appointment => {
+          phoneNumbersWithFutureAppointments.add(appointment.phoneNumber)
+        })
 
         // Batch fetch existing re-engagement messages
         for (let i = 0; i < phoneNumbers.length; i += BATCH_SIZE) {
@@ -252,7 +276,7 @@ export async function GET(request: NextRequest) {
               },
               status: 'sent',
               sentAt: {
-                gte: subWeeks(now, 2), // Within the last 2 weeks
+                gte: subWeeks(nowUTC, 2), // Within the last 2 weeks
               },
             },
             select: { phoneNumber: true },
