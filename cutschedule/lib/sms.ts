@@ -70,6 +70,28 @@ export async function sendSMS(
     // Format phone number to ensure consistency
     const formattedPhone = formatPhoneNumber(phoneNumber)
 
+    // Validate formatted phone number - must start with '+' for E.164 format
+    if (!formattedPhone.startsWith('+')) {
+      const cleaned = phoneNumber.replace(/\D/g, '')
+      const errorMessage = `Invalid phone number - cannot send SMS. Original: "${phoneNumber}", Cleaned: "${cleaned}" (${cleaned.length} digits). Expected 10 digits or 11 digits starting with 1.`
+
+      console.error(errorMessage)
+
+      // Log failed SMS in database with validation error
+      await logSMS(
+        data.appointmentId || 'manual',
+        phoneNumber,
+        messageType,
+        'failed'
+      )
+
+      // Return rejected promise to fail fast
+      return {
+        success: false,
+        error: errorMessage
+      }
+    }
+
     // Get template and replace placeholders
     let message = SMS_TEMPLATES[messageType]
     message = message.replace('{clientName}', data.clientName)
