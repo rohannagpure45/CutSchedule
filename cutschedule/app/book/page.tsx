@@ -178,7 +178,7 @@ export default function BookingPage() {
               </li>
               <li className="flex items-start">
                 <span className="w-2 h-2 bg-primary rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                For urgent changes, dm me at kerr_blendz
+                For urgent changes, DM me at kerr_blendz
               </li>
             </ul>
           </CardContent>
