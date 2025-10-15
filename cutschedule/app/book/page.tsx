@@ -148,7 +148,7 @@ export default function BookingPage() {
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-2">Book Your Appointment</h1>
           <p className="text-lg text-muted-foreground">
-            Schedule your visit to {APP_CONFIG.BARBER_NAME}
+            Schedule your Haircut with Neil
           </p>
         </div>
       </div>
@@ -178,7 +178,7 @@ export default function BookingPage() {
               </li>
               <li className="flex items-start">
                 <span className="w-2 h-2 bg-primary rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                For urgent changes, call us at {APP_CONFIG.BARBER_PHONE}
+                For urgent changes, dm me at kerr_blendz
               </li>
             </ul>
           </CardContent>
