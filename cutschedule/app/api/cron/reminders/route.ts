@@ -40,22 +40,66 @@ export async function GET(request: NextRequest) {
       oneDayReminders: 0,
       oneHourReminders: 0,
       reEngagementMessages: 0,
+      autoCompletedAppointments: 0,
       errors: [] as string[]
     }
 
     // Determine if we should run daily tasks (expensive operations)
-    // Cron runs at 13:00 UTC which is 8 AM EST or 9 AM EDT
-    // We want to run daily tasks once in the morning
+    // Cron runs at 21:30 UTC which is 4:30 PM EST or 5:30 PM EDT
+    // We want to run daily tasks once in the evening
     const businessHour = nowBusiness.getHours()
     const businessMinute = nowBusiness.getMinutes()
 
-    // Run daily tasks between 8-10 AM business time (covers both EST and EDT)
-    const shouldRunDailyTasks = businessHour === 8 || (businessHour === 9 && businessMinute < 30)
+    // Run daily tasks between 4-6:59 PM business time (wide window to handle delays)
+    // This covers: 4 PM (EST on time), 5 PM (EDT on time), 6 PM (delays)
+    const shouldRunDailyTasks = businessHour >= 16 && businessHour <= 18
 
     if (!shouldRunDailyTasks) {
-      console.log(`[Skip Daily Tasks] Business time ${businessHour}:${businessMinute.toString().padStart(2, '0')} (${BUSINESS_TZ}) outside 8:00-9:30 window`)
+      console.log(`[Skip Daily Tasks] Business time ${businessHour}:${businessMinute.toString().padStart(2, '0')} (${BUSINESS_TZ}) outside 4:00-6:59 PM window`)
     } else {
       console.log(`[Running Daily Tasks] Business time ${businessHour}:${businessMinute.toString().padStart(2, '0')} (${BUSINESS_TZ})`)
+    }
+
+    // 0. Auto-complete past appointments (DAILY TASK - runs once per day)
+    // This must run before re-engagement messages since they depend on status='completed'
+    if (shouldRunDailyTasks) {
+      console.log('[Auto-complete] Starting auto-completion of past confirmed appointments')
+
+      // Find all confirmed appointments that have already ended
+      const pastConfirmedAppointments = await prisma.appointment.findMany({
+        where: {
+          status: 'confirmed',
+          endTime: {
+            lt: nowUTC, // Ended before now
+          },
+        },
+        select: { id: true, clientName: true, endTime: true },
+      })
+
+      console.log(`[Auto-complete] Found ${pastConfirmedAppointments.length} past confirmed appointments to mark as completed`)
+
+      if (pastConfirmedAppointments.length > 0) {
+        // Update all in a single batch operation
+        try {
+          const updateResult = await prisma.appointment.updateMany({
+            where: {
+              status: 'confirmed',
+              endTime: {
+                lt: nowUTC,
+              },
+            },
+            data: {
+              status: 'completed',
+            },
+          })
+
+          results.autoCompletedAppointments = updateResult.count
+          console.log(`[Auto-complete] Successfully marked ${updateResult.count} appointments as completed`)
+        } catch (error: any) {
+          console.error('[Auto-complete] Error updating appointments:', error)
+          results.errors.push(`Auto-complete failed: ${error.message}`)
+        }
+      }
     }
 
     // 1. Send 1-day reminders (DAILY TASK - runs once per day)
@@ -124,8 +168,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 2. Send 1-hour reminders (TIME-SENSITIVE - runs every 30 minutes)
-    // Check for appointments 55-65 minutes in the future (tighter window to avoid duplicates)
+    // 2. Send 1-hour reminders (runs once per day at ~4:30 PM EST / 5:30 PM EDT)
+    // Check for appointments 55-65 minutes in the future
+    // Note: This will only send reminders for appointments around 5:30-6:30 PM
     const reminderWindowStart = addMinutes(nowUTC, 55)
     const reminderWindowEnd = addMinutes(nowUTC, 65)
 
@@ -186,14 +231,24 @@ export async function GET(request: NextRequest) {
     // 3. Send re-engagement messages (DAILY TASK - runs once per day)
     if (shouldRunDailyTasks) {
       // Find customers whose last appointment was 2 or 3 weeks ago (in business timezone)
-      const twoWeeksAgoBusiness = subWeeks(nowBusiness, 2)
-      const threeWeeksAgoBusiness = subWeeks(nowBusiness, 3)
+      // Use 3-day windows (14-16 days, 21-23 days) to handle missed cron runs
+      // This prevents customers from being skipped if cron doesn't run for a day or two
+
+      // 2-week re-engagement: 14-16 days ago (3-day window)
+      const twoWeeksAgoBusiness = subWeeks(nowBusiness, 2) // 14 days ago
+      const twoWeeksAgoRangeStart = addDays(twoWeeksAgoBusiness, -2) // 16 days ago
+      const twoWeeksAgoRangeEnd = twoWeeksAgoBusiness // 14 days ago
+
+      // 3-week re-engagement: 21-23 days ago (3-day window)
+      const threeWeeksAgoBusiness = subWeeks(nowBusiness, 3) // 21 days ago
+      const threeWeeksAgoRangeStart = addDays(threeWeeksAgoBusiness, -2) // 23 days ago
+      const threeWeeksAgoRangeEnd = threeWeeksAgoBusiness // 21 days ago
 
       // Convert to UTC for database queries
-      const twoWeeksAgoStartUTC = fromZonedTime(startOfDay(twoWeeksAgoBusiness), BUSINESS_TZ)
-      const twoWeeksAgoEndUTC = fromZonedTime(endOfDay(twoWeeksAgoBusiness), BUSINESS_TZ)
-      const threeWeeksAgoStartUTC = fromZonedTime(startOfDay(threeWeeksAgoBusiness), BUSINESS_TZ)
-      const threeWeeksAgoEndUTC = fromZonedTime(endOfDay(threeWeeksAgoBusiness), BUSINESS_TZ)
+      const twoWeeksAgoStartUTC = fromZonedTime(startOfDay(twoWeeksAgoRangeStart), BUSINESS_TZ)
+      const twoWeeksAgoEndUTC = fromZonedTime(endOfDay(twoWeeksAgoRangeEnd), BUSINESS_TZ)
+      const threeWeeksAgoStartUTC = fromZonedTime(startOfDay(threeWeeksAgoRangeStart), BUSINESS_TZ)
+      const threeWeeksAgoEndUTC = fromZonedTime(endOfDay(threeWeeksAgoRangeEnd), BUSINESS_TZ)
 
       // Get customers who had their last appointment 2 weeks ago
       const reEngagementCandidates = await prisma.appointment.findMany({
@@ -207,7 +262,7 @@ export async function GET(request: NextRequest) {
         distinct: ['phoneNumber'],
       })
 
-      console.log(`Found ${reEngagementCandidates.length} candidates for 2-week re-engagement`)
+      console.log(`Found ${reEngagementCandidates.length} candidates for 2-week re-engagement (14-16 days ago)`)
 
       // Also handle 3-week re-engagement
       const threeWeekCandidates = await prisma.appointment.findMany({
@@ -221,7 +276,7 @@ export async function GET(request: NextRequest) {
         distinct: ['phoneNumber'],
       })
 
-      console.log(`Found ${threeWeekCandidates.length} candidates for 3-week re-engagement`)
+      console.log(`Found ${threeWeekCandidates.length} candidates for 3-week re-engagement (21-23 days ago)`)
 
       // Combine all candidates to optimize queries
       const allCandidates = [...reEngagementCandidates, ...threeWeekCandidates]
@@ -349,7 +404,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      timestamp: now.toISOString(),
+      timestamp: nowUTC.toISOString(),
       results,
     })
 
