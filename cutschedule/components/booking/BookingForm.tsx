@@ -141,7 +141,7 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
       {/* Progress Steps */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-1 sm:gap-2">
             {steps.map((step, index) => {
               const isActive = currentStep === step.id ||
                              (currentStep === 'confirm' && step.completed)
@@ -150,28 +150,28 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
 
               return (
                 <div key={step.id} className="flex items-center">
-                  <div
-                    className={cn(
-                      "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors",
-                      isCompleted
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : isActive
-                        ? "border-primary text-primary"
-                        : "border-muted-foreground/30 text-muted-foreground"
-                    )}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div className="ml-3">
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={cn(
+                        "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors",
+                        isCompleted
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : isActive
+                          ? "border-primary text-primary"
+                          : "border-muted-foreground/30 text-muted-foreground"
+                      )}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </div>
                     <p className={cn(
-                      "text-sm font-medium",
+                      "text-xs sm:text-sm font-medium mt-2 whitespace-nowrap",
                       isCompleted || isActive ? "text-foreground" : "text-muted-foreground"
                     )}>
                       {step.label}
                     </p>
                   </div>
                   {index < steps.length - 1 && (
-                    <ArrowRight className="w-4 h-4 mx-4 text-muted-foreground" />
+                    <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 mx-2 sm:mx-4 text-muted-foreground flex-shrink-0" />
                   )}
                 </div>
               )
