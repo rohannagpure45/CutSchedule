@@ -8,6 +8,7 @@ export default function GalleryPage() {
   const images = [
     { src: "/gallery-1.jpg", alt: "Haircut example 1" },
     { src: "/gallery-2.jpg", alt: "Haircut example 2" },
+    { src: "/gallery-3.jpg", alt: "Haircut example 3" },
   ]
 
   return (
