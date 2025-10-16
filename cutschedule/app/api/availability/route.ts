@@ -62,16 +62,14 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Get all confirmed appointments for this date
+    // Get only confirmed appointments for this date (completed and cancelled don't block slots)
     const appointments = await prisma.appointment.findMany({
       where: {
         date: {
           gte: startOfDay(date),
           lte: endOfDay(date),
         },
-        status: {
-          not: 'cancelled',
-        },
+        status: 'confirmed',
       },
       select: {
         startTime: true,

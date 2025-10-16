@@ -137,16 +137,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check for conflicting appointments
+    // Check for conflicting appointments (only confirmed ones block slots)
     const conflictingAppointments = await prisma.appointment.findMany({
       where: {
         date: {
           gte: startOfDay(appointmentDate),
           lte: endOfDay(appointmentDate),
         },
-        status: {
-          not: 'cancelled',
-        },
+        status: 'confirmed',
         OR: [
           {
             startTime: {
