@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { appointmentBookingSchema, normalizePhoneNumber } from '@/lib/utils/validation'
 import { combineDateTime, parseDateInLocalTimezone } from '@/lib/utils/dates'
-import { addMinutes, startOfDay, endOfDay } from 'date-fns'
+import { addMinutes } from 'date-fns'
 import { APP_CONFIG } from '@/lib/constants'
 import { sendConfirmationSMS } from '@/lib/sms'
 import { createCalendarEvent } from '@/lib/calendar'
+import { getBusinessDayRange } from '@/lib/utils/dates'
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,9 +23,10 @@ export async function GET(request: NextRequest) {
 
     if (date) {
       const targetDate = parseDateInLocalTimezone(date)
+      const { start, endExclusive } = getBusinessDayRange(targetDate)
       where.date = {
-        gte: startOfDay(targetDate),
-        lte: endOfDay(targetDate),
+        gte: start,
+        lt: endExclusive,
       }
     }
 
@@ -95,11 +97,12 @@ export async function POST(request: NextRequest) {
     })
 
     // Verify the date has available slots configured
+    const { start: dayStart, endExclusive: dayEnd } = getBusinessDayRange(appointmentDate)
     const availableSlots = await prisma.availableSlot.findMany({
       where: {
         date: {
-          gte: startOfDay(appointmentDate),
-          lte: endOfDay(appointmentDate),
+          gte: dayStart,
+          lt: dayEnd,
         }
       }
     })
@@ -141,8 +144,8 @@ export async function POST(request: NextRequest) {
     const conflictingAppointments = await prisma.appointment.findMany({
       where: {
         date: {
-          gte: startOfDay(appointmentDate),
-          lte: endOfDay(appointmentDate),
+          gte: dayStart,
+          lt: dayEnd,
         },
         status: 'confirmed',
         OR: [

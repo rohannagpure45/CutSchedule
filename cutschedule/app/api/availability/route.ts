@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { startOfDay, endOfDay, format, addMinutes, isWithinInterval } from 'date-fns'
+import { format, addMinutes, isWithinInterval } from 'date-fns'
 import { availabilityQuerySchema } from '@/lib/utils/validation'
 import { APP_CONFIG } from '@/lib/constants'
-import { parseDateInLocalTimezone } from '@/lib/utils/dates'
+import { parseDateInLocalTimezone, getBusinessDayRange, combineDateTime } from '@/lib/utils/dates'
+import { toZonedTime } from 'date-fns-tz'
+import { BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,11 +46,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Check for available slots on this date
+    const { start: dayStart, endExclusive: dayEnd } = getBusinessDayRange(date)
     const availableSlots = await prisma.availableSlot.findMany({
       where: {
         date: {
-          gte: startOfDay(date),
-          lte: endOfDay(date),
+          gte: dayStart,
+          lt: dayEnd,
         }
       }
     })
@@ -66,8 +69,8 @@ export async function GET(request: NextRequest) {
     const appointments = await prisma.appointment.findMany({
       where: {
         date: {
-          gte: startOfDay(date),
-          lte: endOfDay(date),
+          gte: dayStart,
+          lt: dayEnd,
         },
         status: 'confirmed',
       },
@@ -115,40 +118,34 @@ function generateAvailableSlots(
 ): string[] {
   const slots: string[] = []
 
-  // Create base date for time parsing
-  const baseDate = new Date(targetDate)
-  baseDate.setHours(0, 0, 0, 0)
+  // Determine the target business date key (yyyy-MM-dd in business TZ)
+  const targetZoned = toZonedTime(targetDate, BUSINESS_TIME_ZONE)
+  const dateKey = format(targetZoned, 'yyyy-MM-dd')
 
   const now = new Date()
-  const isToday = targetDate.toDateString() === now.toDateString()
+  const nowZonedKey = format(toZonedTime(now, BUSINESS_TIME_ZONE), 'yyyy-MM-dd')
+  const isToday = dateKey === nowZonedKey
 
   // Loop through each available slot window
   for (const availableWindow of availableSlots) {
-    const [startHour, startMinute] = availableWindow.startTime.split(':').map(Number)
-    const [endHour, endMinute] = availableWindow.endTime.split(':').map(Number)
-
-    const windowStart = new Date(baseDate)
-    windowStart.setHours(startHour, startMinute, 0, 0)
-
-    const windowEnd = new Date(baseDate)
-    windowEnd.setHours(endHour, endMinute, 0, 0)
+    // Build window bounds as UTC instants by interpreting times in business timezone for the date
+    const windowStart = combineDateTime(dateKey, availableWindow.startTime)
+    const windowEnd = combineDateTime(dateKey, availableWindow.endTime)
 
     // If it's today, start from current time (rounded up to next 15-min interval)
     let currentSlot = new Date(windowStart)
 
     if (isToday) {
-      const currentTime = new Date(baseDate)
-      currentTime.setHours(now.getHours(), now.getMinutes(), 0, 0)
-
-      if (currentTime > windowStart) {
-        // Round up to next 15-minute interval
-        const minutes = currentTime.getMinutes()
-        const roundedMinutes = Math.ceil(minutes / 15) * 15
-        currentTime.setMinutes(roundedMinutes, 0, 0)
-
-        if (currentTime > windowStart) {
-          currentSlot = currentTime
-        }
+      // Round up the current time in business TZ to next 15m, then align to UTC
+      const nowZoned = toZonedTime(now, BUSINESS_TIME_ZONE)
+      const minutes = nowZoned.getMinutes()
+      const roundedMinutes = Math.ceil(minutes / 15) * 15
+      nowZoned.setMinutes(roundedMinutes, 0, 0)
+      const roundedKey = format(nowZoned, 'yyyy-MM-dd HH:mm')
+      const [d, t] = roundedKey.split(' ')
+      const roundedUtc = combineDateTime(d, t)
+      if (roundedUtc > windowStart) {
+        currentSlot = roundedUtc
       }
     }
 

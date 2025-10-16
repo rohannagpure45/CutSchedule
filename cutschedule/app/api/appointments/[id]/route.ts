@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { appointmentUpdateSchema } from '@/lib/utils/validation'
 import { combineDateTime, parseDateInLocalTimezone } from '@/lib/utils/dates'
-import { addMinutes, startOfDay, endOfDay } from 'date-fns'
+import { addMinutes } from 'date-fns'
 import { APP_CONFIG } from '@/lib/constants'
 import { sendCancellationSMS, sendConfirmationSMS } from '@/lib/sms'
 import { deleteCalendarEvent, updateCalendarEvent } from '@/lib/calendar'
+import { getBusinessDayRange } from '@/lib/utils/dates'
 
 export async function GET(
   request: NextRequest,
@@ -92,12 +93,13 @@ export async function PATCH(
       }
 
       // Check for conflicts (excluding current appointment, only check confirmed)
+      const { start: dayStart, endExclusive: dayEnd } = getBusinessDayRange(newDate)
       const conflictingAppointments = await prisma.appointment.findMany({
         where: {
           id: { not: id }, // Exclude current appointment
           date: {
-            gte: startOfDay(newDate),
-            lte: endOfDay(newDate),
+            gte: dayStart,
+            lt: dayEnd,
           },
           status: 'confirmed',
           OR: [

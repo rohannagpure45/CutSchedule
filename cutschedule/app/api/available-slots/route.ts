@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { fromZonedTime } from 'date-fns-tz'
+import { BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,15 +63,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse the date as a local date (avoid UTC shift from YYYY-MM-DD)
+    // Interpret the date string as midnight in business timezone, then convert to UTC for storage
     let slotDate: Date
     if (typeof date === 'string') {
-      const [y, m, d] = date.split('-').map((v: string) => parseInt(v, 10))
-      slotDate = new Date(y, (m || 1) - 1, d || 1)
+      // Validate YYYY-MM-DD format before constructing ISO string
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return NextResponse.json(
+          { error: 'Date must be in YYYY-MM-DD format' },
+          { status: 400 }
+        )
+      }
+      const iso = `${date}T00:00:00.000`
+      slotDate = fromZonedTime(iso, BUSINESS_TIME_ZONE)
     } else if (date instanceof Date) {
-      slotDate = date
+      // Derive calendar parts via UTC getters to avoid local-time shifts
+      const y = date.getUTCFullYear()
+      const m = date.getUTCMonth() + 1
+      const d = date.getUTCDate()
+      slotDate = fromZonedTime(`${y.toString().padStart(4,'0')}-${m.toString().padStart(2,'0')}-${d.toString().padStart(2,'0')}T00:00:00.000`, BUSINESS_TIME_ZONE)
     } else {
-      slotDate = new Date(date)
+      const dObj = new Date(date)
+      const y = dObj.getUTCFullYear()
+      const m = dObj.getUTCMonth() + 1
+      const d = dObj.getUTCDate()
+      slotDate = fromZonedTime(`${y.toString().padStart(4,'0')}-${m.toString().padStart(2,'0')}-${d.toString().padStart(2,'0')}T00:00:00.000`, BUSINESS_TIME_ZONE)
     }
 
     const availableSlot = await prisma.availableSlot.create({

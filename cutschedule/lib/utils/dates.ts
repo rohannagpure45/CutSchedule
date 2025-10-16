@@ -2,7 +2,7 @@ import { format, addMinutes, addDays, addWeeks, subWeeks, startOfDay, endOfDay, 
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 
 // Business timezone - all appointments are in EST/EDT
-const BUSINESS_TZ = 'America/New_York'
+export const BUSINESS_TZ = 'America/New_York'
 
 export function formatDate(date: Date): string {
   return format(date, 'yyyy-MM-dd')
@@ -44,6 +44,20 @@ export function combineDateTime(dateString: string, timeString: string): Date {
   // Interpret this datetime as being in EST, convert to UTC for database storage
   // This ensures user's "6:15 PM" means "6:15 PM EST" regardless of server timezone
   return fromZonedTime(isoString, BUSINESS_TZ)
+}
+
+// Returns [inclusiveStart, exclusiveEnd) Date instants for the business day containing `date` in BUSINESS_TZ
+export function getBusinessDayRange(date: Date): { start: Date; endExclusive: Date } {
+  // Convert the provided date to the business timezone to get the correct calendar day
+  const zoned = toZonedTime(date, BUSINESS_TZ)
+  const dayKey = format(zoned, 'yyyy-MM-dd')
+  const start = fromZonedTime(`${dayKey}T00:00:00.000`, BUSINESS_TZ)
+
+  // Compute next calendar day key in the business timezone and convert to UTC instant
+  const nextZoned = addDays(zoned, 1)
+  const nextKey = format(nextZoned, 'yyyy-MM-dd')
+  const endExclusive = fromZonedTime(`${nextKey}T00:00:00.000`, BUSINESS_TZ)
+  return { start, endExclusive }
 }
 
 export function getAvailableTimeSlots(

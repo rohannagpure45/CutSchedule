@@ -2,17 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import {
-  addDays,
-  endOfDay,
-  endOfWeek,
-  format,
-  getDay,
-  startOfDay,
-  startOfToday,
-  startOfWeek,
-} from 'date-fns'
+import { addDays, endOfWeek, format, startOfWeek } from 'date-fns'
 import { APP_CONFIG } from '@/lib/constants'
+import { BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+import { getBusinessDayRange } from '@/lib/utils/dates'
 
 type Window = { startTime: string; endTime: string; reason: string | null }
 
@@ -32,13 +26,14 @@ export async function POST(request: NextRequest) {
     const maxDays = APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS
     const days = Math.max(1, Math.min(body.days ?? maxDays, maxDays))
 
-    // Parse start date as local date (YYYY-MM-DD) or default to today
+    // Parse start date as business-local date (YYYY-MM-DD) or default to today in business TZ
     let start: Date
     if (body.startDate) {
-      const [y, m, d] = body.startDate.split('-').map((v) => parseInt(v, 10))
-      start = new Date(y, (m || 1) - 1, d || 1)
+      start = fromZonedTime(`${body.startDate}T00:00:00.000`, BUSINESS_TIME_ZONE)
     } else {
-      start = startOfToday()
+      const now = new Date()
+      const todayKey = format(toZonedTime(now, BUSINESS_TIME_ZONE), 'yyyy-MM-dd')
+      start = fromZonedTime(`${todayKey}T00:00:00.000`, BUSINESS_TIME_ZONE)
     }
 
     const end = addDays(start, days - 1)
@@ -48,11 +43,13 @@ export async function POST(request: NextRequest) {
     const weekEnd = endOfWeek(start, { weekStartsOn: 0 })
 
     // Fetch slot windows from the source week
+    const { start: sourceWeekStart } = getBusinessDayRange(weekStart)
+    const { endExclusive: sourceWeekEnd } = getBusinessDayRange(weekEnd)
     const sourceWeekSlots = await prisma.availableSlot.findMany({
       where: {
         date: {
-          gte: startOfDay(weekStart),
-          lte: endOfDay(weekEnd),
+          gte: sourceWeekStart,
+          lt: sourceWeekEnd,
         },
       },
       orderBy: { date: 'asc' },
@@ -68,7 +65,7 @@ export async function POST(request: NextRequest) {
     // Build a pattern of windows per weekday (0-6)
     const pattern = new Map<number, Window[]>()
     for (const slot of sourceWeekSlots) {
-      const weekday = getDay(slot.date)
+      const weekday = toZonedTime(slot.date, BUSINESS_TIME_ZONE).getDay()
       const arr = pattern.get(weekday) ?? []
       // Avoid duplicate windows in the pattern for a weekday
       if (!arr.some((w) => w.startTime === slot.startTime && w.endTime === slot.endTime && w.reason === slot.reason)) {
@@ -78,11 +75,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch existing slots in the target range to avoid duplicates and skip pre-populated days
+    const { start: rangeStart } = getBusinessDayRange(start)
+    const { endExclusive: rangeEnd } = getBusinessDayRange(end)
     const existingInRange = await prisma.availableSlot.findMany({
       where: {
         date: {
-          gte: startOfDay(start),
-          lte: endOfDay(end),
+          gte: rangeStart,
+          lt: rangeEnd,
         },
       },
       orderBy: { date: 'asc' },
@@ -90,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const existingByDateKey = new Map<string, Window[]>()
     for (const s of existingInRange) {
-      const key = format(s.date, 'yyyy-MM-dd')
+      const key = format(toZonedTime(s.date, BUSINESS_TIME_ZONE), 'yyyy-MM-dd')
       const list = existingByDateKey.get(key) ?? []
       list.push({ startTime: s.startTime, endTime: s.endTime, reason: s.reason ?? null })
       existingByDateKey.set(key, list)
@@ -99,20 +98,20 @@ export async function POST(request: NextRequest) {
     const toCreate: { date: Date; startTime: string; endTime: string; reason: string | null }[] = []
 
     for (let i = 0; i < days; i++) {
-      const target = addDays(start, i)
-      const dateKey = format(target, 'yyyy-MM-dd')
+      const targetInBusinessTZ = addDays(toZonedTime(start, BUSINESS_TIME_ZONE), i)
+      const dateKey = format(targetInBusinessTZ, 'yyyy-MM-dd')
+      const target = fromZonedTime(targetInBusinessTZ, BUSINESS_TIME_ZONE)
 
       // Skip days that already have any slots
       if (existingByDateKey.has(dateKey)) continue
 
-      const weekday = getDay(target)
+      const weekday = targetInBusinessTZ.getDay()
       const windows = pattern.get(weekday)
       if (!windows || windows.length === 0) continue
 
       for (const w of windows) {
-        // Create with local date (avoid UTC shift)
-        const [y, m, d] = [target.getFullYear(), target.getMonth(), target.getDate()]
-        const localDate = new Date(y, m, d)
+        // Create using business-local midnight converted to UTC
+        const localDate = fromZonedTime(`${dateKey}T00:00:00.000`, BUSINESS_TIME_ZONE)
         toCreate.push({ date: localDate, startTime: w.startTime, endTime: w.endTime, reason: w.reason })
       }
     }
