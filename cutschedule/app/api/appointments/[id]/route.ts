@@ -91,7 +91,7 @@ export async function PATCH(
         )
       }
 
-      // Check for conflicts (excluding current appointment)
+      // Check for conflicts (excluding current appointment, only check confirmed)
       const conflictingAppointments = await prisma.appointment.findMany({
         where: {
           id: { not: id }, // Exclude current appointment
@@ -99,7 +99,7 @@ export async function PATCH(
             gte: startOfDay(newDate),
             lte: endOfDay(newDate),
           },
-          status: { not: 'cancelled' },
+          status: 'confirmed',
           OR: [
             {
               startTime: {
