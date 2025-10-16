@@ -1,4 +1,8 @@
 import { format, addMinutes, addDays, addWeeks, subWeeks, startOfDay, endOfDay, isAfter, isBefore, parseISO } from 'date-fns'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+
+// Business timezone - all appointments are in EST/EDT
+const BUSINESS_TZ = 'America/New_York'
 
 export function formatDate(date: Date): string {
   return format(date, 'yyyy-MM-dd')
@@ -20,23 +24,26 @@ export function parseTime(timeString: string): Date {
 }
 
 export function parseDateInLocalTimezone(dateString: string): Date {
-  // Parse the date string as YYYY-MM-DD in local timezone
-  // This prevents the date from being interpreted as UTC midnight
-  const [year, month, day] = dateString.split('-').map(Number)
+  // Parse the date string as YYYY-MM-DD at midnight in EST timezone
+  // This ensures consistent behavior regardless of server timezone
 
-  // Create date at midnight in local timezone
-  const date = new Date(year, month - 1, day, 0, 0, 0, 0)
-  return date
+  // Create ISO string at midnight
+  const isoString = `${dateString}T00:00:00.000`
+
+  // Interpret as EST and convert to UTC for storage
+  return fromZonedTime(isoString, BUSINESS_TZ)
 }
 
 export function combineDateTime(dateString: string, timeString: string): Date {
-  // Parse the date string as YYYY-MM-DD
-  const [year, month, day] = dateString.split('-').map(Number)
-  const [hours, minutes] = timeString.split(':').map(Number)
+  // Parse date (YYYY-MM-DD) and time (HH:mm) as EST timezone
+  // Example: "2025-10-17" + "18:15" = Oct 17, 2025 6:15 PM EST
 
-  // Create date in local timezone to match user's timezone
-  const date = new Date(year, month - 1, day, hours, minutes, 0, 0)
-  return date
+  // Create ISO string: "2025-10-17T18:15:00.000"
+  const isoString = `${dateString}T${timeString}:00.000`
+
+  // Interpret this datetime as being in EST, convert to UTC for database storage
+  // This ensures user's "6:15 PM" means "6:15 PM EST" regardless of server timezone
+  return fromZonedTime(isoString, BUSINESS_TZ)
 }
 
 export function getAvailableTimeSlots(
