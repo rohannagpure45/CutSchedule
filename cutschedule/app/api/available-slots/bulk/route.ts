@@ -100,7 +100,6 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < days; i++) {
       const targetInBusinessTZ = addDays(toZonedTime(start, BUSINESS_TIME_ZONE), i)
       const dateKey = format(targetInBusinessTZ, 'yyyy-MM-dd')
-      const target = fromZonedTime(targetInBusinessTZ, BUSINESS_TIME_ZONE)
 
       // Skip days that already have any slots
       if (existingByDateKey.has(dateKey)) continue
