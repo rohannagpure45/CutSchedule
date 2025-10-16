@@ -5,10 +5,14 @@ import { prisma } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication
+    // Verify authentication - rely on OAuth allowed test users
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!session || !session.user || !session.user.email) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     const workingHours = await prisma.workingHours.findMany({
@@ -42,10 +46,14 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    // Check authentication
+    // Verify authentication - rely on OAuth allowed test users
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!session || !session.user || !session.user.email) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     const body = await request.json()

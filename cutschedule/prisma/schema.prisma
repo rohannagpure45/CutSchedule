@@ -10,14 +10,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Admin {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  googleId  String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-}
-
 model WorkingHours {
   id        String  @id @default(cuid())
   dayOfWeek Int     @unique // 0-6 (Sunday-Saturday)
@@ -100,7 +92,6 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  adminId       String?   // Reference to Admin.id for admin users
   accounts      Account[]
   sessions      Session[]
 }

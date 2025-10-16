@@ -3,68 +3,64 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { addDays, endOfWeek, format, startOfWeek } from 'date-fns'
-import { APP_CONFIG } from '@/lib/constants'
 import { BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
-import { getBusinessDayRange } from '@/lib/utils/dates'
 
 type Window = { startTime: string; endTime: string; reason: string | null }
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication - rely on OAuth allowed test users
     const session = await getServerSession(authOptions)
-    if (!session?.user?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!session || !session.user || !session.user.email) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
-    const body = await request.json().catch(() => ({})) as {
-      startDate?: string
-      days?: number
-    }
+    // Get today in business timezone
+    const now = new Date()
+    const todayInBusinessTZ = toZonedTime(now, BUSINESS_TIME_ZONE)
+    const todayKey = format(todayInBusinessTZ, 'yyyy-MM-dd')
+    const todayStart = fromZonedTime(`${todayKey}T00:00:00.000`, BUSINESS_TIME_ZONE)
 
-    // Clamp days to configured maximum
-    const maxDays = APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS
-    const days = Math.max(1, Math.min(body.days ?? maxDays, maxDays))
+    // Calculate current week boundaries (Sunday to Saturday)
+    const currentWeekStart = startOfWeek(todayInBusinessTZ, { weekStartsOn: 0 })
+    const currentWeekEnd = endOfWeek(todayInBusinessTZ, { weekStartsOn: 0 })
 
-    // Parse start date as business-local date (YYYY-MM-DD) or default to today in business TZ
-    let start: Date
-    if (body.startDate) {
-      start = fromZonedTime(`${body.startDate}T00:00:00.000`, BUSINESS_TIME_ZONE)
-    } else {
-      const now = new Date()
-      const todayKey = format(toZonedTime(now, BUSINESS_TIME_ZONE), 'yyyy-MM-dd')
-      start = fromZonedTime(`${todayKey}T00:00:00.000`, BUSINESS_TIME_ZONE)
-    }
+    // Convert week boundaries to UTC for database queries
+    const currentWeekStartUTC = fromZonedTime(
+      `${format(currentWeekStart, 'yyyy-MM-dd')}T00:00:00.000`,
+      BUSINESS_TIME_ZONE
+    )
+    const currentWeekEndUTC = fromZonedTime(
+      `${format(addDays(currentWeekEnd, 1), 'yyyy-MM-dd')}T00:00:00.000`,
+      BUSINESS_TIME_ZONE
+    )
 
-    const end = addDays(start, days - 1)
-
-    // Determine the source week (Sunday -> Saturday) from the start date
-    const weekStart = startOfWeek(start, { weekStartsOn: 0 })
-    const weekEnd = endOfWeek(start, { weekStartsOn: 0 })
-
-    // Fetch slot windows from the source week
-    const { start: sourceWeekStart } = getBusinessDayRange(weekStart)
-    const { endExclusive: sourceWeekEnd } = getBusinessDayRange(weekEnd)
-    const sourceWeekSlots = await prisma.availableSlot.findMany({
+    // Fetch slots from current week that are >= today (remaining slots only)
+    const remainingCurrentWeekSlots = await prisma.availableSlot.findMany({
       where: {
         date: {
-          gte: sourceWeekStart,
-          lt: sourceWeekEnd,
+          gte: todayStart,
+          lt: currentWeekEndUTC,
         },
       },
       orderBy: { date: 'asc' },
     })
 
-    if (sourceWeekSlots.length === 0) {
+    if (remainingCurrentWeekSlots.length === 0) {
       return NextResponse.json(
-        { error: 'No available slots found in the source week. Add slots for this week first.' },
+        { error: 'No remaining slots found in the current week. Add slots for upcoming days first.' },
         { status: 400 },
       )
     }
 
-    // Build a pattern of windows per weekday (0-6)
+    // Build a pattern of windows per weekday (0-6) from remaining slots
     const pattern = new Map<number, Window[]>()
-    for (const slot of sourceWeekSlots) {
+    for (const slot of remainingCurrentWeekSlots) {
       const weekday = toZonedTime(slot.date, BUSINESS_TIME_ZONE).getDay()
       const arr = pattern.get(weekday) ?? []
       // Avoid duplicate windows in the pattern for a weekday
@@ -74,37 +70,85 @@ export async function POST(request: NextRequest) {
       pattern.set(weekday, arr)
     }
 
-    // Fetch existing slots in the target range to avoid duplicates and skip pre-populated days
-    const { start: rangeStart } = getBusinessDayRange(start)
-    const { endExclusive: rangeEnd } = getBusinessDayRange(end)
-    const existingInRange = await prisma.availableSlot.findMany({
+    // Find the next week that doesn't have any slots yet (for repeated presses)
+    // Start searching from next week's Sunday
+    const nextWeekStart = addDays(currentWeekStart, 7)
+    let targetWeekStart = nextWeekStart
+    let searchWeek = 0
+    const MAX_WEEKS_TO_SEARCH = 52 // Search up to 1 year ahead
+
+    // Search for the first week that has no slots
+    while (searchWeek < MAX_WEEKS_TO_SEARCH) {
+      const weekStartUTC = fromZonedTime(
+        `${format(addDays(nextWeekStart, searchWeek * 7), 'yyyy-MM-dd')}T00:00:00.000`,
+        BUSINESS_TIME_ZONE
+      )
+      const weekEndUTC = fromZonedTime(
+        `${format(addDays(nextWeekStart, searchWeek * 7 + 7), 'yyyy-MM-dd')}T00:00:00.000`,
+        BUSINESS_TIME_ZONE
+      )
+
+      const slotsInWeek = await prisma.availableSlot.count({
+        where: {
+          date: {
+            gte: weekStartUTC,
+            lt: weekEndUTC,
+          },
+        },
+      })
+
+      if (slotsInWeek === 0) {
+        targetWeekStart = addDays(nextWeekStart, searchWeek * 7)
+        break
+      }
+
+      searchWeek++
+    }
+
+    if (searchWeek >= MAX_WEEKS_TO_SEARCH) {
+      return NextResponse.json(
+        { error: 'All weeks for the next year already have slots. No more weeks available.' },
+        { status: 400 },
+      )
+    }
+
+    // Fetch existing slots in the target week to implement merge behavior
+    const targetWeekStartUTC = fromZonedTime(
+      `${format(targetWeekStart, 'yyyy-MM-dd')}T00:00:00.000`,
+      BUSINESS_TIME_ZONE
+    )
+    const targetWeekEndUTC = fromZonedTime(
+      `${format(addDays(targetWeekStart, 7), 'yyyy-MM-dd')}T00:00:00.000`,
+      BUSINESS_TIME_ZONE
+    )
+
+    const existingInTargetWeek = await prisma.availableSlot.findMany({
       where: {
         date: {
-          gte: rangeStart,
-          lt: rangeEnd,
+          gte: targetWeekStartUTC,
+          lt: targetWeekEndUTC,
         },
       },
       orderBy: { date: 'asc' },
     })
 
-    const existingByDateKey = new Map<string, Window[]>()
-    for (const s of existingInRange) {
+    const existingByDateKey = new Set<string>()
+    for (const s of existingInTargetWeek) {
       const key = format(toZonedTime(s.date, BUSINESS_TIME_ZONE), 'yyyy-MM-dd')
-      const list = existingByDateKey.get(key) ?? []
-      list.push({ startTime: s.startTime, endTime: s.endTime, reason: s.reason ?? null })
-      existingByDateKey.set(key, list)
+      existingByDateKey.add(key)
     }
 
+    // Create slots for the target week
     const toCreate: { date: Date; startTime: string; endTime: string; reason: string | null }[] = []
 
-    for (let i = 0; i < days; i++) {
-      const targetInBusinessTZ = addDays(toZonedTime(start, BUSINESS_TIME_ZONE), i)
-      const dateKey = format(targetInBusinessTZ, 'yyyy-MM-dd')
+    for (let i = 0; i < 7; i++) {
+      const targetDayInBusinessTZ = addDays(targetWeekStart, i)
+      const dateKey = format(targetDayInBusinessTZ, 'yyyy-MM-dd')
 
-      // Skip days that already have any slots
+      // Skip days that already have slots (merge behavior)
       if (existingByDateKey.has(dateKey)) continue
 
-      const weekday = targetInBusinessTZ.getDay()
+      const weekday = targetDayInBusinessTZ.getDay()
       const windows = pattern.get(weekday)
       if (!windows || windows.length === 0) continue
 
@@ -116,7 +160,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (toCreate.length === 0) {
-      return NextResponse.json({ success: true, created: 0, message: 'No new slots to create.' })
+      return NextResponse.json({ success: true, created: 0, message: 'No new slots to create. All days in target week already have slots.' })
     }
 
     // Insert all new slots

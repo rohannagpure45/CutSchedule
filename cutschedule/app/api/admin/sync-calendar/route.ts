@@ -6,24 +6,37 @@ import { createCalendarEvent } from '@/lib/calendar'
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate required environment variables
-    const adminEmail = process.env.ADMIN_EMAIL
-    if (!adminEmail) {
-      console.error('ADMIN_EMAIL environment variable is not configured')
-      return NextResponse.json(
-        { error: 'Server configuration error: ADMIN_EMAIL not configured' },
-        { status: 500 }
-      )
-    }
-
-    // Check authentication
+    // Verify authentication - rely on OAuth development mode allowed test users
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.email !== adminEmail) {
+
+    // Check if session exists
+    if (!session) {
+      console.warn('[Auth Audit] Calendar sync attempted without session')
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - No session' },
         { status: 401 }
       )
     }
+
+    // Check if user exists in session
+    if (!session.user) {
+      console.warn('[Auth Audit] Calendar sync attempted with session but no user')
+      return NextResponse.json(
+        { error: 'Unauthorized - No user in session' },
+        { status: 401 }
+      )
+    }
+
+    // Check if user has email (required for OAuth users)
+    if (!session.user.email) {
+      console.warn('[Auth Audit] Calendar sync attempted by user without email')
+      return NextResponse.json(
+        { error: 'Unauthorized - No email in session' },
+        { status: 401 }
+      )
+    }
+
+    console.log(`[Auth Audit] Calendar sync authorized for user: ${session.user.email}`)
 
     console.log('Starting calendar sync for unsynced appointments...')
 
@@ -74,7 +87,7 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`Syncing appointment ${appointment.id} for ${appointment.clientName}`)
 
-        const result = await createCalendarEvent(appointment)
+        const result = await createCalendarEvent(appointment, session?.user?.email)
 
         if (result.success && result.eventId) {
           // Update appointment with Google Calendar event ID

@@ -28,7 +28,8 @@ function LoginContent() {
     // Check if user is already logged in, but only once
     const checkSession = async () => {
       const session = await getSession()
-      if (session?.user?.isAdmin) {
+      // OAuth authenticated users have access - no admin check needed
+      if (session?.user) {
         // Use replace instead of push to avoid history issues
         router.replace('/admin')
       }

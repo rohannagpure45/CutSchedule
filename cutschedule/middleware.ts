@@ -1,11 +1,6 @@
 import { withAuth } from 'next-auth/middleware'
 import { NextResponse } from 'next/server'
 
-// Validate ADMIN_EMAIL is set at startup to fail fast
-if (!process.env.ADMIN_EMAIL) {
-  throw new Error('ADMIN_EMAIL environment variable is not set. Please configure it to enable admin access.')
-}
-
 export default withAuth(
   function middleware(req) {
     const pathname = req.nextUrl.pathname

@@ -5,20 +5,8 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Starting database seed...')
 
-  // Create admin user
-  const adminEmail = process.env.ADMIN_EMAIL || 'ribt2218@gmail.com'
-
-  const admin = await prisma.admin.upsert({
-    where: { email: adminEmail },
-    update: {},
-    create: {
-      email: adminEmail,
-      googleId: 'pending-first-login',
-      name: 'Admin User',
-    },
-  })
-
-  console.log(`✅ Admin user created/updated: ${admin.email}`)
+  // Note: Access control is managed by Google OAuth allowed test users
+  // No admin table or admin user seeding needed
 
   // Create default working hours
   const defaultWorkingHours = [

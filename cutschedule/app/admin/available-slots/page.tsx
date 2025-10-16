@@ -18,7 +18,6 @@ import {
 import { SimpleCalendar } from '@/components/ui/simple-calendar'
 import { ArrowLeft, Plus, Calendar, Trash2, Clock } from 'lucide-react'
 import { format, parseISO, startOfToday } from 'date-fns'
-import { APP_CONFIG } from '@/lib/constants'
 import { useToast } from '@/hooks/use-toast'
 
 interface AvailableSlot {
@@ -179,8 +178,7 @@ export default function AvailableSlotsPage() {
     try {
       const response = await fetch('/api/available-slots/bulk', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days: APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS })
+        headers: { 'Content-Type': 'application/json' }
       })
       if (response.ok) {
         const data = await response.json()
@@ -253,15 +251,15 @@ export default function AvailableSlotsPage() {
             <CardHeader>
               <CardTitle>Bulk Create Slots</CardTitle>
               <CardDescription>
-                Copy this week&apos;s available time windows to the next {APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS} days. Existing days with slots are skipped.
+                Duplicate this week&apos;s remaining shifts to the next available week. Press repeatedly to extend further.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button onClick={handleBulkCreate} disabled={bulkLoading}>
-                {bulkLoading ? 'Creating…' : `Bulk Create for Next ${APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS} Days`}
+                {bulkLoading ? 'Creating…' : 'Bulk Create for Next Week'}
               </Button>
               <p className="text-xs text-muted-foreground mt-2">
-                Uses this week&apos;s pattern by weekday (e.g., Mondays match Mondays) and leaves days that already have slots unchanged.
+                Only upcoming shifts from this week are duplicated to the next week without existing slots. Days with slots are skipped.
               </p>
             </CardContent>
           </Card>

@@ -6,9 +6,10 @@ import { authOptions } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    // Get session to verify admin access
+    // Verify authentication - rely on OAuth allowed test users
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
+
+    if (!session || !session.user || !session.user.email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -44,9 +45,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get session to verify admin access
+    // Verify authentication - rely on OAuth allowed test users
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
+
+    if (!session || !session.user || !session.user.email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

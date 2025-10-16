@@ -1,8 +1,7 @@
 'use client'
 
 import { useSession, signOut } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import type { Route } from 'next'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,7 +21,6 @@ interface Appointment {
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession()
-  const router = useRouter()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
@@ -114,10 +112,13 @@ export default function AdminDashboard() {
               <p className="text-sm text-gray-600">Welcome back, {session?.user?.name || 'Admin'}</p>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm" onClick={() => router.push('/admin/settings' as Route)}>
+              <Link
+                href="/admin/settings"
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 transition-colors"
+              >
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
-              </Button>
+              </Link>
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign Out
@@ -268,37 +269,34 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Button
-                  className="h-16"
-                  variant="outline"
-                  onClick={() => router.push('/admin/appointments')}
+                <Link
+                  href="/admin/appointments"
+                  className="h-16 flex items-center justify-center border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
                 >
                   <div className="text-center">
                     <Calendar className="w-6 h-6 mx-auto mb-1" />
                     <p className="text-sm">View All Appointments</p>
                   </div>
-                </Button>
+                </Link>
                 {/** Working Hours removed in favor of Available Slots as single source of truth **/}
-                <Button
-                  className="h-16"
-                  variant="outline"
-                  onClick={() => router.push('/admin/available-slots')}
+                <Link
+                  href="/admin/available-slots"
+                  className="h-16 flex items-center justify-center border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
                 >
                   <div className="text-center">
                     <Calendar className="w-6 h-6 mx-auto mb-1" />
                     <p className="text-sm">Available Time Slots</p>
                   </div>
-                </Button>
-                <Button
-                  className="h-16"
-                  variant="outline"
-                  onClick={() => router.push('/admin/sms-logs')}
+                </Link>
+                <Link
+                  href="/admin/sms-logs"
+                  className="h-16 flex items-center justify-center border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
                 >
                   <div className="text-center">
                     <Phone className="w-6 h-6 mx-auto mb-1" />
                     <p className="text-sm">SMS Logs</p>
                   </div>
-                </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>

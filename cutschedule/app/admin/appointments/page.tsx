@@ -1,7 +1,7 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,7 +49,6 @@ interface Appointment {
 
 export default function AppointmentsPage() {
   const { data: session, status } = useSession()
-  const router = useRouter()
   const { toast } = useToast()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([])
@@ -65,6 +64,9 @@ export default function AppointmentsPage() {
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    // Set mounted to true when component mounts
+    isMountedRef.current = true
+
     // Don't wait for session, just fetch appointments immediately
     // Middleware has already verified we're admin
     fetchAppointments()
@@ -367,13 +369,12 @@ export default function AppointmentsPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => router.push('/admin')}
+            <Link
+              href="/admin"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-10 w-10"
             >
               <ArrowLeft className="w-4 h-4" />
-            </Button>
+            </Link>
             <div>
               <h1 className="text-2xl font-bold">Appointments</h1>
               <p className="text-gray-600">Manage all appointments</p>

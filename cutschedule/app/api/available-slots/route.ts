@@ -2,26 +2,36 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { fromZonedTime } from 'date-fns-tz'
+import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
+import { format } from 'date-fns'
+import { getBusinessDayRange } from '@/lib/utils/dates'
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication
-    const adminEmail = process.env.ADMIN_EMAIL
-    if (!adminEmail || adminEmail.trim() === '') {
-      console.error('ADMIN_EMAIL environment variable is not configured')
+    // Verify authentication - rely on OAuth allowed test users
+    const session = await getServerSession(authOptions)
+
+    if (!session || !session.user || !session.user.email) {
       return NextResponse.json(
-        { error: 'Server configuration error: ADMIN_EMAIL not configured' },
-        { status: 500 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       )
     }
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
+    // Calculate today's start time in business timezone for filtering
+    const now = new Date()
+    const todayInBusinessTZ = toZonedTime(now, BUSINESS_TIME_ZONE)
+    const todayKey = format(todayInBusinessTZ, 'yyyy-MM-dd')
+    const todayStart = fromZonedTime(`${todayKey}T00:00:00.000`, BUSINESS_TIME_ZONE)
+
+    // Fetch slots from today onwards (filter out past slots in query)
     const availableSlots = await prisma.availableSlot.findMany({
+      where: {
+        date: {
+          gte: todayStart
+        }
+      },
       orderBy: {
         date: 'asc'
       }
@@ -39,18 +49,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const adminEmail = process.env.ADMIN_EMAIL
-    if (!adminEmail || adminEmail.trim() === '') {
-      console.error('ADMIN_EMAIL environment variable is not configured')
-      return NextResponse.json(
-        { error: 'Server configuration error: ADMIN_EMAIL not configured' },
-        { status: 500 }
-      )
-    }
+    // Verify authentication - rely on OAuth allowed test users
     const session = await getServerSession(authOptions)
-    if (!session?.user?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!session || !session.user || !session.user.email) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     const body = await request.json()
@@ -110,18 +116,14 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    // Check authentication
-    const adminEmail = process.env.ADMIN_EMAIL
-    if (!adminEmail || adminEmail.trim() === '') {
-      console.error('ADMIN_EMAIL environment variable is not configured')
-      return NextResponse.json(
-        { error: 'Server configuration error: ADMIN_EMAIL not configured' },
-        { status: 500 }
-      )
-    }
+    // Verify authentication - rely on OAuth allowed test users
     const session = await getServerSession(authOptions)
-    if (!session?.user?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!session || !session.user || !session.user.email) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     const searchParams = request.nextUrl.searchParams

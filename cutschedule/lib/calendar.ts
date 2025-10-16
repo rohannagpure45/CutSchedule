@@ -2,28 +2,34 @@ import { google } from 'googleapis'
 import { prisma } from '@/lib/db'
 
 // Initialize Google Calendar API with OAuth2 client
-async function getGoogleCalendarClient() {
+async function getGoogleCalendarClient(userEmail?: string) {
   try {
-    // Get the admin's account with OAuth tokens
-    // Must join with User table to ensure we get the correct admin account
+    // Get the user's account with OAuth tokens
+    // If no email provided, get the most recent Google account
+    const whereClause = userEmail
+      ? {
+          provider: 'google',
+          user: {
+            email: userEmail,
+          },
+        }
+      : {
+          provider: 'google',
+        }
+
     const account = await prisma.account.findFirst({
-      where: {
-        provider: 'google',
-        user: {
-          email: process.env.ADMIN_EMAIL,
-        },
-      },
+      where: whereClause,
       include: {
         user: true,
       },
       orderBy: {
-        id: 'desc', // Get the most recent account for this admin
+        id: 'desc', // Get the most recent account
       },
     })
 
     if (!account || !account.access_token) {
       const errorMessage = !account
-        ? `No Google account found for admin (${process.env.ADMIN_EMAIL}). Admin must sign in with Google first.`
+        ? `No Google account found${userEmail ? ` for ${userEmail}` : ''}. User must sign in with Google first.`
         : 'Google account found but missing access token'
       console.error('Calendar client initialization failed:', errorMessage)
       throw new Error(errorMessage)
@@ -107,10 +113,11 @@ export async function createCalendarEvent(
     phoneNumber: string
     startTime: Date
     endTime: Date
-  }
+  },
+  userEmail?: string
 ): Promise<{ success: boolean; eventId?: string; error?: string }> {
   try {
-    const calendar = await getGoogleCalendarClient()
+    const calendar = await getGoogleCalendarClient(userEmail)
 
     const event: CalendarEvent = {
       summary: `Haircut - ${appointment.clientName}`,
@@ -162,10 +169,11 @@ export async function updateCalendarEvent(
     phoneNumber: string
     startTime: Date
     endTime: Date
-  }
+  },
+  userEmail?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const calendar = await getGoogleCalendarClient()
+    const calendar = await getGoogleCalendarClient(userEmail)
 
     const event: CalendarEvent = {
       summary: `Haircut - ${appointment.clientName}`,
@@ -208,10 +216,11 @@ export async function updateCalendarEvent(
 }
 
 export async function deleteCalendarEvent(
-  eventId: string
+  eventId: string,
+  userEmail?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const calendar = await getGoogleCalendarClient()
+    const calendar = await getGoogleCalendarClient(userEmail)
 
     console.log('Deleting calendar event:', eventId)
 
@@ -235,10 +244,11 @@ export async function deleteCalendarEvent(
 
 export async function getCalendarEvents(
   timeMin: Date,
-  timeMax: Date
+  timeMax: Date,
+  userEmail?: string
 ): Promise<{ success: boolean; events?: any[]; error?: string }> {
   try {
-    const calendar = await getGoogleCalendarClient()
+    const calendar = await getGoogleCalendarClient(userEmail)
 
     console.log('Fetching calendar events from', timeMin, 'to', timeMax)
 
