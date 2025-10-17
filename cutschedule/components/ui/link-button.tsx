@@ -1,12 +1,14 @@
 "use client"
 
 import * as React from "react"
-import Link, { type LinkProps } from "next/link"
+import Link from "next/link"
 import { Button, type ButtonProps } from "@/components/ui/button"
 
+type NextLinkProps = React.ComponentProps<typeof Link>
+
 type LinkButtonProps = Omit<ButtonProps, "asChild"> & {
-  href: LinkProps["href"]
-  prefetch?: LinkProps["prefetch"]
+  href: NextLinkProps["href"]
+  prefetch?: NextLinkProps["prefetch"]
   target?: React.AnchorHTMLAttributes<HTMLAnchorElement>["target"]
   rel?: React.AnchorHTMLAttributes<HTMLAnchorElement>["rel"]
 }

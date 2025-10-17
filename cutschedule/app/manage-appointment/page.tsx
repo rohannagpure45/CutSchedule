@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,14 +44,7 @@ function ManageAppointmentContent() {
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
-  // Auto-search if phone number is in URL
-  useEffect(() => {
-    if (phoneParam && !appointment && !loading) {
-      handleSearch()
-    }
-  }, [phoneParam])
-
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     if (!phoneNumber.trim()) {
       setError("Please enter a phone number")
       return
@@ -95,7 +88,14 @@ function ManageAppointmentContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [phoneNumber])
+
+  // Auto-search if phone number is in URL
+  useEffect(() => {
+    if (phoneParam && !appointment && !loading) {
+      handleSearch()
+    }
+  }, [phoneParam, appointment, loading, handleSearch])
 
   const handleCancelConfirm = async () => {
     if (!appointment) return
