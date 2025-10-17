@@ -1,6 +1,10 @@
 import { google } from 'googleapis'
 import { prisma } from '@/lib/db'
 
+function getCalendarId(): string {
+  return process.env.GOOGLE_CALENDAR_ID || 'primary'
+}
+
 // Initialize Google Calendar API with OAuth2 client
 async function getGoogleCalendarClient(userEmail?: string) {
   try {
@@ -81,6 +85,10 @@ async function getGoogleCalendarClient(userEmail?: string) {
   }
 }
 
+function getDefaultCalendarOwnerEmail(): string | undefined {
+  return process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.ADMIN_EMAIL || undefined
+}
+
 export interface CalendarEvent {
   id?: string
   summary: string
@@ -117,7 +125,7 @@ export async function createCalendarEvent(
   userEmail?: string
 ): Promise<{ success: boolean; eventId?: string; error?: string }> {
   try {
-    const calendar = await getGoogleCalendarClient(userEmail)
+    const calendar = await getGoogleCalendarClient(userEmail || getDefaultCalendarOwnerEmail())
 
     // Ensure we never fall back to any placeholder names from auth/session
     const clientName = (appointment.clientName || '').trim() || 'Client'
@@ -144,7 +152,7 @@ export async function createCalendarEvent(
     console.log('Creating calendar event:', event)
 
     const response = await calendar.events.insert({
-      calendarId: 'primary', // Use 'primary' for the default calendar
+      calendarId: getCalendarId(),
       requestBody: event,
     })
 
@@ -176,7 +184,7 @@ export async function updateCalendarEvent(
   userEmail?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const calendar = await getGoogleCalendarClient(userEmail)
+    const calendar = await getGoogleCalendarClient(userEmail || getDefaultCalendarOwnerEmail())
 
     const clientName = (appointment.clientName || '').trim() || 'Client'
 
@@ -202,7 +210,7 @@ export async function updateCalendarEvent(
     console.log('Updating calendar event:', eventId, event)
 
     await calendar.events.update({
-      calendarId: 'primary',
+      calendarId: getCalendarId(),
       eventId: eventId,
       requestBody: event,
     })
@@ -224,25 +232,31 @@ export async function deleteCalendarEvent(
   eventId: string,
   userEmail?: string
 ): Promise<{ success: boolean; error?: string }> {
+  const tryDelete = async (email?: string) => {
+    const calendar = await getGoogleCalendarClient(email)
+    await calendar.events.delete({ calendarId: getCalendarId(), eventId })
+  }
+
   try {
-    const calendar = await getGoogleCalendarClient(userEmail)
-
     console.log('Deleting calendar event:', eventId)
-
-    await calendar.events.delete({
-      calendarId: 'primary',
-      eventId: eventId,
-    })
-
+    // First try with provided email (if any)
+    await tryDelete(userEmail)
     console.log('Calendar event deleted successfully:', eventId)
-
     return { success: true }
-
-  } catch (error: any) {
-    console.error('Error deleting calendar event:', error)
-    return {
-      success: false,
-      error: error.message || 'Failed to delete calendar event'
+  } catch (primaryError: any) {
+    // Try with default owner email if provided email failed
+    try {
+      const fallbackEmail = getDefaultCalendarOwnerEmail()
+      if (fallbackEmail && fallbackEmail !== userEmail) {
+        console.warn('Primary delete failed. Retrying with fallback calendar owner email.')
+        await tryDelete(fallbackEmail)
+        console.log('Calendar event deleted successfully (fallback):', eventId)
+        return { success: true }
+      }
+      throw primaryError
+    } catch (error: any) {
+      console.error('Error deleting calendar event:', error)
+      return { success: false, error: error?.message || 'Failed to delete calendar event' }
     }
   }
 }
@@ -258,7 +272,7 @@ export async function getCalendarEvents(
     console.log('Fetching calendar events from', timeMin, 'to', timeMax)
 
     const response = await calendar.events.list({
-      calendarId: 'primary',
+      calendarId: getCalendarId(),
       timeMin: timeMin.toISOString(),
       timeMax: timeMax.toISOString(),
       singleEvents: true,

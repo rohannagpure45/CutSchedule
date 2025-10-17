@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { createCalendarEvent } from '@/lib/calendar'
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '@/lib/calendar'
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,110 +38,125 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Auth Audit] Calendar sync authorized for user: ${session.user.email}`)
 
-    console.log('Starting calendar sync for unsynced appointments...')
+    console.log('Starting calendar sync reconciliation...')
 
-    // Find all confirmed appointments without a Google Calendar event
-    const appointments = await prisma.appointment.findMany({
-      where: {
-        googleEventId: null,
-        status: 'confirmed',
-        startTime: {
-          gte: new Date(), // Only sync future appointments
-        },
-      },
-      orderBy: {
-        startTime: 'asc',
-      },
-    })
-
-    if (appointments.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'No appointments need syncing. All appointments are up to date!',
-        results: {
-          total: 0,
-          synced: 0,
-          failed: 0,
-        },
-      })
-    }
-
-    console.log(`Found ${appointments.length} appointments to sync`)
-
+    // Prepare results object
     const results = {
-      total: appointments.length,
-      synced: 0,
+      created: 0,
+      updated: 0,
+      deleted: 0,
       failed: 0,
       details: [] as Array<{
         appointmentId: string
-        clientName: string
-        startTime: string
+        action: 'create' | 'update' | 'delete'
         success: boolean
         eventId?: string
         error?: string
       }>,
     }
 
-    // Sync each appointment
-    for (const appointment of appointments) {
+    const now = new Date()
+
+    // 1) Reconcile cancellations: delete calendar events for cancelled appointments
+    const cancelledWithEvents = await prisma.appointment.findMany({
+      where: {
+        status: 'cancelled',
+        googleEventId: { not: null },
+      },
+      select: { id: true, googleEventId: true },
+    })
+    for (const apt of cancelledWithEvents) {
       try {
-        console.log(`Syncing appointment ${appointment.id} for ${appointment.clientName}`)
-
-        const result = await createCalendarEvent(appointment, session?.user?.email)
-
-        if (result.success && result.eventId) {
-          // Update appointment with Google Calendar event ID
-          await prisma.appointment.update({
-            where: { id: appointment.id },
-            data: { googleEventId: result.eventId },
-          })
-
-          results.synced++
-          results.details.push({
-            appointmentId: appointment.id,
-            clientName: appointment.clientName,
-            startTime: appointment.startTime.toISOString(),
-            success: true,
-            eventId: result.eventId,
-          })
-
-          console.log(`Successfully synced appointment ${appointment.id}`)
+        const del = await deleteCalendarEvent(apt.googleEventId!, session.user.email!)
+        if (del.success) {
+          await prisma.appointment.update({ where: { id: apt.id }, data: { googleEventId: null } })
+          results.deleted++
+          results.details.push({ appointmentId: apt.id, action: 'delete', success: true })
         } else {
           results.failed++
-          results.details.push({
-            appointmentId: appointment.id,
-            clientName: appointment.clientName,
-            startTime: appointment.startTime.toISOString(),
-            success: false,
-            error: result.error,
-          })
-
-          console.error(`Failed to sync appointment ${appointment.id}:`, result.error)
+          results.details.push({ appointmentId: apt.id, action: 'delete', success: false, error: del.error })
         }
-      } catch (error) {
+      } catch (e: any) {
         results.failed++
-        results.details.push({
-          appointmentId: appointment.id,
-          clientName: appointment.clientName,
-          startTime: appointment.startTime.toISOString(),
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        })
+        results.details.push({ appointmentId: apt.id, action: 'delete', success: false, error: e?.message || 'Unknown error' })
+      }
+    }
 
-        console.error(`Error syncing appointment ${appointment.id}:`, error)
+    // 2) Confirmed future appointments: ensure calendar reflects latest timing/title
+    const confirmedFuture = await prisma.appointment.findMany({
+      where: {
+        status: 'confirmed',
+        startTime: { gte: now },
+      },
+      orderBy: { startTime: 'asc' },
+    })
+    for (const appointment of confirmedFuture) {
+      try {
+        if (!appointment.googleEventId) {
+          // Create new event
+          const created = await createCalendarEvent(appointment, session?.user?.email)
+          if (created.success && created.eventId) {
+            await prisma.appointment.update({ where: { id: appointment.id }, data: { googleEventId: created.eventId } })
+            results.created++
+            results.details.push({ appointmentId: appointment.id, action: 'create', success: true, eventId: created.eventId })
+          } else {
+            results.failed++
+            results.details.push({ appointmentId: appointment.id, action: 'create', success: false, error: created.error })
+          }
+        } else {
+          // Update existing event to the latest details
+          const updated = await updateCalendarEvent(
+            appointment.googleEventId,
+            {
+              id: appointment.id,
+              clientName: appointment.clientName,
+              phoneNumber: appointment.phoneNumber,
+              startTime: new Date(appointment.startTime),
+              endTime: new Date(appointment.endTime),
+            },
+            session?.user?.email
+          )
+
+          if (updated.success) {
+            results.updated++
+            results.details.push({ appointmentId: appointment.id, action: 'update', success: true, eventId: appointment.googleEventId })
+          } else {
+            // Fallback: delete and create if update failed
+            const del = await deleteCalendarEvent(appointment.googleEventId, session.user.email!)
+            if (!del.success) {
+              results.failed++
+              results.details.push({ appointmentId: appointment.id, action: 'delete', success: false, error: del.error })
+            } else {
+              const created = await createCalendarEvent({
+                id: appointment.id,
+                clientName: appointment.clientName,
+                phoneNumber: appointment.phoneNumber,
+                startTime: new Date(appointment.startTime),
+                endTime: new Date(appointment.endTime),
+              }, session?.user?.email)
+              if (created.success && created.eventId) {
+                await prisma.appointment.update({ where: { id: appointment.id }, data: { googleEventId: created.eventId } })
+                results.updated++
+                results.details.push({ appointmentId: appointment.id, action: 'update', success: true, eventId: created.eventId })
+              } else {
+                results.failed++
+                results.details.push({ appointmentId: appointment.id, action: 'update', success: false, error: updated.error || created.error })
+              }
+            }
+          }
+        }
+      } catch (error: any) {
+        results.failed++
+        results.details.push({ appointmentId: appointment.id, action: appointment.googleEventId ? 'update' : 'create', success: false, error: error?.message || 'Unknown error' })
       }
     }
 
     const allSuccess = results.failed === 0
     const message = allSuccess
-      ? `Successfully synced ${results.synced} appointment(s) to Google Calendar!`
-      : `Synced ${results.synced} appointment(s). ${results.failed} failed.`
+      ? `Calendar sync complete. Created: ${results.created}, Updated: ${results.updated}, Deleted: ${results.deleted}.`
+      : `Calendar sync partial. Created: ${results.created}, Updated: ${results.updated}, Deleted: ${results.deleted}, Failed: ${results.failed}.`
 
-    return NextResponse.json({
-      success: allSuccess,
-      message,
-      results,
-    })
+    return NextResponse.json({ success: allSuccess, message, results })
 
   } catch (error) {
     console.error('Error in calendar sync endpoint:', error)
