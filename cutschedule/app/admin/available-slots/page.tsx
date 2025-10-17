@@ -18,6 +18,7 @@ import {
 import { SimpleCalendar } from '@/components/ui/simple-calendar'
 import { ArrowLeft, Plus, Calendar, Trash2, Clock } from 'lucide-react'
 import { format, parseISO, startOfToday } from 'date-fns'
+import { formatETDateLong } from '@/lib/utils/timezone'
 import { useToast } from '@/hooks/use-toast'
 
 interface AvailableSlot {
@@ -307,9 +308,7 @@ export default function AvailableSlotsPage() {
                       <div className="flex-1">
                         <div className="font-medium">
                           {(() => {
-                            const d = new Date(slot.date)
-                            const local = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
-                            return format(local, 'MMMM d, yyyy')
+                            return formatETDateLong(slot.date)
                           })()}
                         </div>
                         <div className="text-sm text-gray-600">

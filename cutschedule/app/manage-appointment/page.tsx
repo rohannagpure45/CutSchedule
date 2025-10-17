@@ -249,7 +249,7 @@ function ManageAppointmentContent() {
                     <p className="text-lg font-semibold">
                       {formatDateTime(appointment.startTime).time} - {formatEndTime(appointment.endTime)}
                     </p>
-                    <p className="text-sm text-muted-foreground">(45 minutes)</p>
+                    <p className="text-sm text-muted-foreground">({APP_CONFIG.APPOINTMENT_DURATION} minutes)</p>
                   </div>
                 </div>
               </div>

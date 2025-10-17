@@ -2,3 +2,8 @@ cutschedule/token.txt
 .vercel
 cutschedule/.next/
 .playwright-mcp/
+
+# Environment variables
+.env.local
+.env*.local
+*.env.local

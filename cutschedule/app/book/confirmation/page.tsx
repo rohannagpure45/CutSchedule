@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, Calendar, Clock, MapPin, Phone, MessageSquare, ArrowLeft, XCircle } from "lucide-react"
 import Link from "next/link"
 import { APP_CONFIG } from "@/lib/constants"
+import { formatETDateLong, formatETTime } from '@/lib/utils/timezone'
 
 interface Appointment {
   id: string
@@ -65,19 +66,8 @@ function ConfirmationContent() {
     }
 
     return {
-      date: startTime.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        timeZone: 'America/New_York'
-      }),
-      time: startTime.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: 'America/New_York'
-      })
+      date: formatETDateLong(startTime),
+      time: formatETTime(startTime)
     }
   }
 
@@ -91,12 +81,7 @@ function ConfirmationContent() {
       return 'Invalid Time'
     }
 
-    return endTime.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'America/New_York'
-    })
+    return formatETTime(endTime)
   }
 
   if (loading) {
@@ -184,7 +169,7 @@ function ConfirmationContent() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Time</p>
                   <p className="text-lg font-semibold">{time} - {endTime}</p>
-                  <p className="text-sm text-muted-foreground">(45 minutes)</p>
+                  <p className="text-sm text-muted-foreground">({APP_CONFIG.APPOINTMENT_DURATION} minutes)</p>
                 </div>
               </div>
             </div>

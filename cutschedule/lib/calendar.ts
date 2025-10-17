@@ -1,4 +1,6 @@
-import { google } from 'googleapis'
+import { google, type calendar_v3 } from 'googleapis'
+import type { GaxiosError } from 'gaxios'
+import { formatInTimeZone } from 'date-fns-tz'
 import { prisma } from '@/lib/db'
 
 function getCalendarId(): string {
@@ -39,11 +41,10 @@ async function getGoogleCalendarClient(userEmail?: string) {
       throw new Error(errorMessage)
     }
 
-    // Create OAuth2 client
+    // Create OAuth2 client without redirect URI to avoid invalid_grant due to env mismatch
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.NEXTAUTH_URL + '/api/auth/callback/google'
+      process.env.GOOGLE_CLIENT_SECRET
     )
 
     // Set credentials
@@ -78,7 +79,22 @@ async function getGoogleCalendarClient(userEmail?: string) {
       }
     })
 
-    return google.calendar({ version: 'v3', auth: oauth2Client })
+    const client = google.calendar({ version: 'v3', auth: oauth2Client })
+    try {
+      console.log('[Calendar] Initialized client', {
+        email: account.user?.email,
+        calendarId: getCalendarId(),
+      })
+    } catch (err) {
+      // Ensure logging failures never crash or get silently swallowed
+      try {
+        console.error('Calendar logging failed', err)
+      } catch {
+        // Last-resort fallback
+        try { process?.stderr?.write?.('Calendar logging failed\n') } catch {}
+      }
+    }
+    return client
   } catch (error) {
     console.error('Error initializing Google Calendar client:', error)
     throw error
@@ -90,6 +106,9 @@ function getDefaultCalendarOwnerEmail(): string | undefined {
 }
 
 async function getCalendarClientWithFallback(userEmail?: string) {
+  // Prefer service account if configured
+  const svc = await getServiceCalendarClientIfAvailable()
+  if (svc) return svc
   const firstAttemptEmail = userEmail ?? getDefaultCalendarOwnerEmail()
   try {
     return await getGoogleCalendarClient(firstAttemptEmail)
@@ -105,6 +124,91 @@ async function getCalendarClientWithFallback(userEmail?: string) {
     }
     console.warn('Falling back to most-recent Google account for calendar client')
     return await getGoogleCalendarClient(undefined)
+  }
+}
+
+// Secure secret retrieval for a fallback refresh token (no direct env access)
+async function getRefreshTokenSecret(): Promise<string | undefined> {
+  const backend = (process.env.CALENDAR_SECRET_BACKEND || 'prisma').toLowerCase()
+  try {
+    if (backend === 'prisma') {
+      const owner = getDefaultCalendarOwnerEmail()
+      if (!owner) return undefined
+      const account = await prisma.account.findFirst({
+        where: { provider: 'google', user: { email: owner } },
+        include: { user: true },
+        orderBy: { id: 'desc' },
+      })
+      // If stored encrypted, decrypt here (placeholder)
+      return account?.refresh_token || undefined
+    }
+    // TODO: Add AWS Secrets Manager / Vault integrations when configured
+    return undefined
+  } catch (err) {
+    console.error('[Calendar] Failed to retrieve fallback refresh token from backend', err)
+    return undefined
+  }
+}
+
+async function getSecretCalendarClient() {
+  const refresh = await getRefreshTokenSecret()
+  if (!refresh) return undefined
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  )
+  oauth2Client.setCredentials({ refresh_token: refresh })
+  return google.calendar({ version: 'v3', auth: oauth2Client })
+}
+
+// Generic helper to retry calendar operations with env refresh token on invalid_grant
+async function withEnvTokenRetry<T>(
+  operation: (calendar?: calendar_v3.Calendar) => Promise<T>,
+  operationName: string
+): Promise<T> {
+  try {
+    return await operation(undefined)
+  } catch (error) {
+    const gerr = error as GaxiosError<{ error?: string }>
+    const isInvalidGrant = gerr?.response?.status === 400 && gerr?.response?.data?.error === 'invalid_grant'
+    if (isInvalidGrant) {
+      console.warn(`[Calendar] invalid_grant on ${operationName}; attempting secure token retry`)
+      try {
+        const envCal = await getSecretCalendarClient()
+        if (envCal) {
+          return await operation(envCal)
+        }
+      } catch (e2) {
+        console.error(`[Calendar] Retry with secure token failed while ${operationName}:`, e2)
+        throw error
+      }
+    }
+    throw error
+  }
+}
+
+function hasServiceAccount(): boolean {
+  return !!(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY)
+}
+
+async function getServiceCalendarClientIfAvailable() {
+  if (!hasServiceAccount()) return undefined
+  try {
+    const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL as string
+    // Support env with escaped newlines
+    const privateKey = (process.env.GOOGLE_PRIVATE_KEY as string).replace(/\\n/g, '\n')
+    const jwt = new google.auth.JWT({
+      email: clientEmail,
+      key: privateKey,
+      scopes: ['https://www.googleapis.com/auth/calendar'],
+    })
+    await jwt.authorize()
+    const cal = google.calendar({ version: 'v3', auth: jwt })
+    console.log('[Calendar] Using service account client', { email: clientEmail, calendarId: getCalendarId() })
+    return cal
+  } catch (e) {
+    console.warn('[Calendar] Service account initialization failed; falling back to OAuth user', e)
+    return undefined
   }
 }
 
@@ -133,117 +237,89 @@ export interface CalendarEvent {
   }
 }
 
+export type AppointmentForCalendar = {
+  id: string
+  clientName: string
+  phoneNumber: string
+  startTime: Date
+  endTime: Date
+  timeZone?: string
+}
+
+function buildHaircutEvent(appointment: AppointmentForCalendar): CalendarEvent {
+  const clientName = (appointment.clientName || '').trim() || 'Client'
+  const tz = appointment.timeZone || process.env.DEFAULT_TIMEZONE || 'America/New_York'
+  // Build RFC3339 strings in the target timezone with offset
+  const startLocal = formatInTimeZone(appointment.startTime, tz, "yyyy-MM-dd'T'HH:mm:ssXXX")
+  const endLocal = formatInTimeZone(appointment.endTime, tz, "yyyy-MM-dd'T'HH:mm:ssXXX")
+  return {
+    summary: `Haircut - ${clientName}`,
+    description: `Haircut appointment for ${clientName}\nPhone: ${appointment.phoneNumber}\nAppointment ID: ${appointment.id}`,
+    start: {
+      dateTime: startLocal,
+      timeZone: tz,
+    },
+    end: {
+      dateTime: endLocal,
+      timeZone: tz,
+    },
+    reminders: {
+      useDefault: false,
+      overrides: [{ method: 'popup', minutes: 10 }],
+    },
+  }
+}
+
 export async function createCalendarEvent(
-  appointment: {
-    id: string
-    clientName: string
-    phoneNumber: string
-    startTime: Date
-    endTime: Date
-  },
+  appointment: AppointmentForCalendar,
   userEmail?: string
 ): Promise<{ success: boolean; eventId?: string; error?: string }> {
   try {
-    const calendar = await getCalendarClientWithFallback(userEmail)
-
-    // Ensure we never fall back to any placeholder names from auth/session
-    const clientName = (appointment.clientName || '').trim() || 'Client'
-
-    const event: CalendarEvent = {
-      summary: `Haircut - ${clientName}`,
-      description: `Haircut appointment for ${clientName}\nPhone: ${appointment.phoneNumber}\nAppointment ID: ${appointment.id}`,
-      start: {
-        dateTime: appointment.startTime.toISOString(),
-        timeZone: 'America/New_York', // Adjust timezone as needed
-      },
-      end: {
-        dateTime: appointment.endTime.toISOString(),
-        timeZone: 'America/New_York',
-      },
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: 'popup', minutes: 10 }
-        ]
-      }
-    }
-
-    console.log('Creating calendar event:', event)
-
-    const response = await calendar.events.insert({
-      calendarId: getCalendarId(),
-      requestBody: event,
-    })
-
-    console.log('Calendar event created successfully:', response.data.id)
-
-    return {
-      success: true,
-      eventId: response.data.id!
-    }
-
+    const result = await withEnvTokenRetry(async (cal?: calendar_v3.Calendar) => {
+      const calendar = cal ?? await getCalendarClientWithFallback(userEmail)
+      const event = buildHaircutEvent(appointment)
+      console.log('[Calendar] Creating event on', getCalendarId(), '→', { summary: event.summary, start: event.start, end: event.end })
+      const response = await calendar.events.insert({ calendarId: getCalendarId(), requestBody: event })
+      console.log('[Calendar] Created event id:', response.data.id)
+      return { success: true as const, eventId: response.data.id! }
+    }, 'creating event')
+    return result
   } catch (error: any) {
-    console.error('Error creating calendar event:', error)
-    return {
-      success: false,
-      error: error.message || 'Failed to create calendar event'
+    const gerr = error as GaxiosError<{ error?: string }>
+    const isInvalidGrant = gerr?.response?.status === 400 && gerr?.response?.data?.error === 'invalid_grant'
+    if (isInvalidGrant) {
+      console.error('[Calendar] invalid_grant while creating event. The Google refresh token may be invalid or revoked. Ask the owner to re-authenticate in Admin.', error)
+    } else {
+      console.error('Error creating calendar event:', error)
     }
+    return { success: false, error: error?.message || 'Failed to create calendar event' }
   }
 }
 
 export async function updateCalendarEvent(
   eventId: string,
-  appointment: {
-    id: string
-    clientName: string
-    phoneNumber: string
-    startTime: Date
-    endTime: Date
-  },
+  appointment: AppointmentForCalendar,
   userEmail?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const calendar = await getCalendarClientWithFallback(userEmail)
-
-    const clientName = (appointment.clientName || '').trim() || 'Client'
-
-    const event: CalendarEvent = {
-      summary: `Haircut - ${clientName}`,
-      description: `Haircut appointment for ${clientName}\nPhone: ${appointment.phoneNumber}\nAppointment ID: ${appointment.id}`,
-      start: {
-        dateTime: appointment.startTime.toISOString(),
-        timeZone: 'America/New_York',
-      },
-      end: {
-        dateTime: appointment.endTime.toISOString(),
-        timeZone: 'America/New_York',
-      },
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: 'popup', minutes: 10 }
-        ]
-      }
-    }
-
-    console.log('Updating calendar event:', eventId, event)
-
-    await calendar.events.update({
-      calendarId: getCalendarId(),
-      eventId: eventId,
-      requestBody: event,
-    })
-
-    console.log('Calendar event updated successfully:', eventId)
-
-    return { success: true }
-
+    const result = await withEnvTokenRetry(async (cal?: calendar_v3.Calendar) => {
+      const calendar = cal ?? await getCalendarClientWithFallback(userEmail)
+      const event = buildHaircutEvent(appointment)
+      console.log('[Calendar] Updating event on', getCalendarId(), 'id:', eventId, '→', { summary: event.summary, start: event.start, end: event.end })
+      await calendar.events.update({ calendarId: getCalendarId(), eventId, requestBody: event })
+      console.log('[Calendar] Updated event id:', eventId)
+      return { success: true as const }
+    }, 'updating event')
+    return result
   } catch (error: any) {
-    console.error('Error updating calendar event:', error)
-    return {
-      success: false,
-      error: error.message || 'Failed to update calendar event'
+    const gerr = error as GaxiosError<{ error?: string }>
+    const isInvalidGrant = gerr?.response?.status === 400 && gerr?.response?.data?.error === 'invalid_grant'
+    if (isInvalidGrant) {
+      console.error('[Calendar] invalid_grant while updating event. The Google refresh token may be invalid or revoked. Ask the owner to re-authenticate in Admin.', error)
+    } else {
+      console.error('Error updating calendar event:', error)
     }
+    return { success: false, error: error?.message || 'Failed to update calendar event' }
   }
 }
 
@@ -252,8 +328,12 @@ export async function deleteCalendarEvent(
   userEmail?: string
 ): Promise<{ success: boolean; error?: string }> {
   const tryDelete = async (email?: string) => {
-    const calendar = await getGoogleCalendarClient(email)
-    await calendar.events.delete({ calendarId: getCalendarId(), eventId })
+    await withEnvTokenRetry(async (cal?: calendar_v3.Calendar) => {
+      const calendar = cal ?? await getCalendarClientWithFallback(email)
+      console.log('[Calendar] Deleting event on', getCalendarId(), 'with email', email)
+      await calendar.events.delete({ calendarId: getCalendarId(), eventId })
+      return true as const
+    }, 'deleting event')
   }
 
   try {
@@ -286,7 +366,7 @@ export async function getCalendarEvents(
   userEmail?: string
 ): Promise<{ success: boolean; events?: any[]; error?: string }> {
   try {
-    const calendar = await getGoogleCalendarClient(userEmail)
+    const calendar = await getCalendarClientWithFallback(userEmail)
 
     console.log('Fetching calendar events from', timeMin, 'to', timeMax)
 

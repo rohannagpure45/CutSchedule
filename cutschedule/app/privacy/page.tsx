@@ -1,4 +1,8 @@
 import { Metadata } from 'next'
+import { formatETDateLong } from '@/lib/utils/timezone'
+
+// Update only when Privacy Policy changes
+const PRIVACY_POLICY_EFFECTIVE_DATE = new Date('2025-10-17')
 
 export const metadata: Metadata = {
   title: 'Privacy Policy - CutSchedule',
@@ -10,7 +14,7 @@ export default function PrivacyPolicy() {
     <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-8">
         <h1 className="text-3xl font-bold mb-8">Privacy Policy</h1>
-        <p className="text-sm text-gray-600 mb-6">Effective Date: {new Date().toLocaleDateString()}</p>
+        <p className="text-sm text-gray-600 mb-6">Effective Date: {formatETDateLong(PRIVACY_POLICY_EFFECTIVE_DATE)}</p>
 
         <div className="space-y-6 text-gray-700">
           <section>

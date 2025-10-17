@@ -12,7 +12,9 @@ import { DatePicker } from "./DatePicker"
 import { TimeSlotPicker } from "./TimeSlotPicker"
 import { appointmentBookingSchema, type AppointmentBookingData } from "@/lib/utils/validation"
 import { formatDate, formatTime } from "@/lib/utils/dates"
+import { etDateKey, formatETDateLong } from "@/lib/utils/timezone"
 import { User, Phone, Calendar, Clock, ArrowRight, Loader2 } from "lucide-react"
+import { APP_CONFIG } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 
 interface BookingFormProps {
@@ -25,9 +27,13 @@ type BookingStep = 'date' | 'time' | 'details' | 'confirm'
 
 export function BookingForm({ onSubmit, className, initialData }: BookingFormProps) {
   const [currentStep, setCurrentStep] = useState<BookingStep>('date')
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-    initialData?.date ? new Date(initialData.date) : undefined
-  )
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
+    if (!initialData?.date) return undefined
+    // Parse YYYY-MM-DD safely to avoid UTC parsing shifting the day
+    const [y, m, d] = initialData.date.split('-').map(Number)
+    if (!y || !m || !d) return undefined
+    return new Date(y, m - 1, d)
+  })
   const [selectedTime, setSelectedTime] = useState<string | undefined>(initialData?.time)
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [availableDates, setAvailableDates] = useState<Date[]>([])
@@ -76,7 +82,8 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
   useEffect(() => {
     if (selectedDate) {
       fetchAvailableSlots(selectedDate)
-      setValue('date', formatDate(selectedDate))
+      // Use ET date key to keep date consistent across timezones
+      setValue('date', etDateKey(selectedDate))
     }
   }, [selectedDate, setValue])
 
@@ -90,7 +97,7 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
   const fetchAvailableSlots = async (date: Date) => {
     setSlotsLoading(true)
     try {
-      const response = await fetch(`/api/availability?date=${formatDate(date)}`)
+      const response = await fetch(`/api/availability?date=${etDateKey(date)}`)
       if (response.ok) {
         const data = await response.json()
         setAvailableSlots(data.slots || [])
@@ -251,18 +258,11 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
                 <div className="mt-6 p-4 bg-muted rounded-lg">
                   <h4 className="font-medium mb-2">Appointment Summary</h4>
                   <div className="space-y-1 text-sm text-muted-foreground">
-                    <p><Calendar className="w-4 h-4 inline mr-2" />
-                      {selectedDate.toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
+                    <p><Calendar className="w-4 h-4 inline mr-2" />{formatETDateLong(selectedDate)}</p>
                     <p><Clock className="w-4 h-4 inline mr-2" />
                       {formatTime(new Date(`2000-01-01T${selectedTime}:00`))} - {
-                        formatTime(new Date(new Date(`2000-01-01T${selectedTime}:00`).getTime() + 45 * 60000))
-                      } (45 minutes)
+                        formatTime(new Date(new Date(`2000-01-01T${selectedTime}:00`).getTime() + APP_CONFIG.APPOINTMENT_DURATION * 60000))
+                      } ({APP_CONFIG.APPOINTMENT_DURATION} minutes)
                     </p>
                   </div>
                 </div>

@@ -64,7 +64,7 @@ export function getAvailableTimeSlots(
   date: Date,
   workingHours: { startTime: string; endTime: string },
   existingAppointments: Array<{ startTime: Date; endTime: Date }>,
-  appointmentDuration: number = 45,
+  appointmentDuration: number = 44,
   bufferTime: number = 30
 ): string[] {
   const slots: string[] = []

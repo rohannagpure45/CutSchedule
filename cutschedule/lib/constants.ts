@@ -1,6 +1,6 @@
 export const APP_CONFIG = {
-  APPOINTMENT_DURATION: 45, // minutes
-  BUFFER_TIME: 30, // minutes between appointments
+  APPOINTMENT_DURATION: 44, // minutes
+  BUFFER_TIME: 0, // minutes between appointments (no enforced gap)
   SLOT_INTERVAL: 15, // minute intervals for time slots
   MAX_ADVANCE_BOOKING_DAYS: parseInt(process.env.MAX_ADVANCE_DAYS || '25'),
   BARBER_NAME: process.env.NEXT_PUBLIC_BARBER_NAME || 'CutSchedule Barbershop',

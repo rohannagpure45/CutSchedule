@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Calendar, Clock, Users, Phone, LogOut, Settings } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { formatETTime, formatETDateShort, isETToday, isETTomorrow, etDaysFromToday } from '@/lib/utils/timezone'
+import { APP_CONFIG } from '@/lib/constants'
 
 interface Appointment {
   id: string
@@ -210,7 +211,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="text-right">
                         <p className="font-medium">{formatETTime(appointment.startTime)}</p>
-                        <p className="text-xs text-gray-500">45 min</p>
+                        <p className="text-xs text-gray-500">{APP_CONFIG.APPOINTMENT_DURATION} min</p>
                       </div>
                     </div>
                   ))}

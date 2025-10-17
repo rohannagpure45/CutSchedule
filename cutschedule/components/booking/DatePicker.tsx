@@ -3,7 +3,8 @@
 import * as React from "react"
 import { SimpleCalendar } from "@/components/ui/simple-calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { addDays, format, isSameDay, startOfDay, endOfDay, isBefore, isAfter } from "date-fns"
+import { addDays, isSameDay, startOfDay, endOfDay, isBefore, isAfter } from "date-fns"
+import { formatETDateLong } from "@/lib/utils/timezone"
 import { APP_CONFIG } from "@/lib/constants"
 
 interface DatePickerProps {
@@ -68,7 +69,7 @@ export function DatePicker({
         {selectedDate && (
           <div className="mt-4 p-3 bg-muted rounded-md">
             <p className="text-sm font-medium">
-              Selected: {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+              Selected: {formatETDateLong(selectedDate)}
             </p>
           </div>
         )}

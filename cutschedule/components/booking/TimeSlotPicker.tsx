@@ -4,6 +4,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { format } from "date-fns"
+import { formatETDateLong } from "@/lib/utils/timezone"
 import { Clock, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -103,9 +104,7 @@ export function TimeSlotPicker({
           <Clock className="w-5 h-5" />
           Available Times
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {format(selectedDate, 'EEEE, MMMM d, yyyy')}
-        </p>
+        <p className="text-sm text-muted-foreground">{formatETDateLong(selectedDate)}</p>
       </CardHeader>
       <CardContent>
         {loading ? (
