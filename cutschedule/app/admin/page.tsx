@@ -1,7 +1,8 @@
 'use client'
 
 import { useSession, signOut } from 'next-auth/react'
-import Link from 'next/link'
+// import Link from 'next/link'
+import { LinkButton } from '@/components/ui/link-button'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -112,13 +113,10 @@ export default function AdminDashboard() {
               <p className="text-sm text-gray-600">Welcome back, {session?.user?.name || 'Admin'}</p>
             </div>
             <div className="flex items-center space-x-4">
-              <Link
-                href="/admin/settings"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 transition-colors"
-              >
+              <LinkButton href="/admin/settings" variant="outline" size="sm">
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
-              </Link>
+              </LinkButton>
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign Out
@@ -269,34 +267,25 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Link
-                  href="/admin/appointments"
-                  className="h-16 flex items-center justify-center border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
-                >
+                <LinkButton href="/admin/appointments" variant="outline" className="h-16">
                   <div className="text-center">
                     <Calendar className="w-6 h-6 mx-auto mb-1" />
                     <p className="text-sm">View All Appointments</p>
                   </div>
-                </Link>
+                </LinkButton>
                 {/** Working Hours removed in favor of Available Slots as single source of truth **/}
-                <Link
-                  href="/admin/available-slots"
-                  className="h-16 flex items-center justify-center border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
-                >
+                <LinkButton href="/admin/available-slots" variant="outline" className="h-16">
                   <div className="text-center">
                     <Calendar className="w-6 h-6 mx-auto mb-1" />
                     <p className="text-sm">Available Time Slots</p>
                   </div>
-                </Link>
-                <Link
-                  href="/admin/sms-logs"
-                  className="h-16 flex items-center justify-center border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
-                >
+                </LinkButton>
+                <LinkButton href="/admin/sms-logs" variant="outline" className="h-16">
                   <div className="text-center">
                     <Phone className="w-6 h-6 mx-auto mb-1" />
                     <p className="text-sm">SMS Logs</p>
                   </div>
-                </Link>
+                </LinkButton>
               </div>
             </CardContent>
           </Card>

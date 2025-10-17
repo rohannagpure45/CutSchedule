@@ -3,7 +3,7 @@
 import * as React from "react"
 import { SimpleCalendar } from "@/components/ui/simple-calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { addDays, format, isSameDay } from "date-fns"
+import { addDays, format, isSameDay, startOfDay, endOfDay, isBefore, isAfter } from "date-fns"
 import { APP_CONFIG } from "@/lib/constants"
 
 interface DatePickerProps {
@@ -23,15 +23,16 @@ export function DatePicker({
   availableDates,
   className
 }: DatePickerProps) {
-  const today = new Date()
+  // Normalize comparisons to day boundaries to avoid disabling "today" after midnight
+  const today = startOfDay(new Date())
   const maxDate = addDays(today, APP_CONFIG.MAX_ADVANCE_BOOKING_DAYS)
 
   const isDateDisabled = (date: Date) => {
-    // Disable past dates
-    if (date < today) return true
+    // Disable past dates (compare by day, not time)
+    if (isBefore(date, today)) return true
 
-    // Disable dates beyond max advance booking
-    if (date > maxDate) return true
+    // Disable dates beyond max advance booking (inclusive of the last day)
+    if (isAfter(date, endOfDay(maxDate))) return true
 
     // If availableDates is provided (whitelist approach), only allow those dates.
     // Treat empty array as "no dates available" so everything is disabled by default.

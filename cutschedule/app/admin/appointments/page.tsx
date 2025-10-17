@@ -1,7 +1,8 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import Link from 'next/link'
+// import Link from 'next/link'
+import { LinkButton } from '@/components/ui/link-button'
 import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -373,12 +374,9 @@ export default function AppointmentsPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Link
-              href="/admin"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-10 w-10"
-            >
+            <LinkButton href="/admin" variant="ghost" size="icon" aria-label="Back to Admin">
               <ArrowLeft className="w-4 h-4" />
-            </Link>
+            </LinkButton>
             <div>
               <h1 className="text-2xl font-bold">Appointments</h1>
               <p className="text-gray-600">Manage all appointments</p>
