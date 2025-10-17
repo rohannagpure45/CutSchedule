@@ -38,6 +38,12 @@ async function syncAppointmentsToCalendar() {
     let successCount = 0
     let failureCount = 0
 
+    // Resolve and validate calendar owner email once
+    const ownerEmail = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.ADMIN_EMAIL
+    if (!ownerEmail) {
+      throw new Error('Calendar sync requires GOOGLE_CALENDAR_OWNER_EMAIL or ADMIN_EMAIL to be set')
+    }
+
     for (const appointment of appointments) {
       console.log(`\n⏳ Syncing appointment ${appointment.id}:`)
       console.log(`   Client: ${appointment.clientName}`)
@@ -45,7 +51,6 @@ async function syncAppointmentsToCalendar() {
       console.log(`   Date: ${appointment.startTime.toLocaleString('en-US', { timeZone: 'America/New_York' })}`)
 
       try {
-        const ownerEmail = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.ADMIN_EMAIL
         const result = await createCalendarEvent(appointment, ownerEmail)
 
         if (result.success && result.eventId) {

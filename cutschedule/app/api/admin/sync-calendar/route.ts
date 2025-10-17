@@ -38,6 +38,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Auth Audit] Calendar sync authorized for user: ${session.user.email}`)
 
+    // Validate calendar owner configuration early and exit if missing
+    const ownerEmail = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.ADMIN_EMAIL
+    if (!ownerEmail) {
+      const msg = 'Calendar sync misconfiguration: set GOOGLE_CALENDAR_OWNER_EMAIL or ADMIN_EMAIL in environment to enable syncing.'
+      console.error(msg)
+      return NextResponse.json({ error: msg }, { status: 500 })
+    }
+
     console.log('Starting calendar sync reconciliation...')
 
     // Prepare results object
@@ -94,7 +102,7 @@ export async function POST(request: NextRequest) {
       try {
         if (!appointment.googleEventId) {
           // Create new event
-          const created = await createCalendarEvent(appointment, session?.user?.email)
+          const created = await createCalendarEvent(appointment, ownerEmail)
           if (created.success && created.eventId) {
             await prisma.appointment.update({ where: { id: appointment.id }, data: { googleEventId: created.eventId } })
             results.created++
@@ -114,7 +122,7 @@ export async function POST(request: NextRequest) {
               startTime: new Date(appointment.startTime),
               endTime: new Date(appointment.endTime),
             },
-            session?.user?.email
+            ownerEmail
           )
 
           if (updated.success) {
@@ -133,7 +141,7 @@ export async function POST(request: NextRequest) {
                 phoneNumber: appointment.phoneNumber,
                 startTime: new Date(appointment.startTime),
                 endTime: new Date(appointment.endTime),
-              }, session?.user?.email)
+              }, ownerEmail)
               if (created.success && created.eventId) {
                 await prisma.appointment.update({ where: { id: appointment.id }, data: { googleEventId: created.eventId } })
                 results.updated++

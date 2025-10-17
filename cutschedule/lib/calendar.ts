@@ -89,6 +89,25 @@ function getDefaultCalendarOwnerEmail(): string | undefined {
   return process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.ADMIN_EMAIL || undefined
 }
 
+async function getCalendarClientWithFallback(userEmail?: string) {
+  const firstAttemptEmail = userEmail ?? getDefaultCalendarOwnerEmail()
+  try {
+    return await getGoogleCalendarClient(firstAttemptEmail)
+  } catch (e1) {
+    console.warn('Primary calendar client initialization failed', { firstAttemptEmail }, e1)
+    const fallbackEmail = getDefaultCalendarOwnerEmail()
+    if (fallbackEmail && fallbackEmail !== firstAttemptEmail) {
+      try {
+        return await getGoogleCalendarClient(fallbackEmail)
+      } catch (e2) {
+        console.warn('Fallback calendar client initialization failed', { fallbackEmail }, e2)
+      }
+    }
+    console.warn('Falling back to most-recent Google account for calendar client')
+    return await getGoogleCalendarClient(undefined)
+  }
+}
+
 export interface CalendarEvent {
   id?: string
   summary: string
@@ -125,7 +144,7 @@ export async function createCalendarEvent(
   userEmail?: string
 ): Promise<{ success: boolean; eventId?: string; error?: string }> {
   try {
-    const calendar = await getGoogleCalendarClient(userEmail || getDefaultCalendarOwnerEmail())
+    const calendar = await getCalendarClientWithFallback(userEmail)
 
     // Ensure we never fall back to any placeholder names from auth/session
     const clientName = (appointment.clientName || '').trim() || 'Client'
@@ -184,7 +203,7 @@ export async function updateCalendarEvent(
   userEmail?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const calendar = await getGoogleCalendarClient(userEmail || getDefaultCalendarOwnerEmail())
+    const calendar = await getCalendarClientWithFallback(userEmail)
 
     const clientName = (appointment.clientName || '').trim() || 'Client'
 
