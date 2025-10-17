@@ -45,7 +45,8 @@ async function syncAppointmentsToCalendar() {
       console.log(`   Date: ${appointment.startTime.toLocaleString('en-US', { timeZone: 'America/New_York' })}`)
 
       try {
-        const result = await createCalendarEvent(appointment)
+        const ownerEmail = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.ADMIN_EMAIL
+        const result = await createCalendarEvent(appointment, ownerEmail)
 
         if (result.success && result.eventId) {
           // Update appointment with Google Calendar event ID

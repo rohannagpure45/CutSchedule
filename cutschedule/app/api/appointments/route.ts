@@ -209,7 +209,8 @@ export async function POST(request: NextRequest) {
 
     // Create Google Calendar event
     try {
-      const calendarResult = await createCalendarEvent(appointment)
+      const ownerEmail = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.ADMIN_EMAIL
+      const calendarResult = await createCalendarEvent(appointment, ownerEmail)
       if (calendarResult.success && calendarResult.eventId) {
         console.log('Calendar event created successfully:', calendarResult.eventId)
 

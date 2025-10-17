@@ -143,8 +143,9 @@ export async function PATCH(
 
       // Replace Google Calendar event: delete old event (if any) then create a new one
       try {
+        const ownerEmail = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.ADMIN_EMAIL
         if (appointment.googleEventId) {
-          const delResult = await deleteCalendarEvent(appointment.googleEventId)
+          const delResult = await deleteCalendarEvent(appointment.googleEventId, ownerEmail)
           if (delResult.success) {
             console.log('Deleted old calendar event:', appointment.googleEventId)
           } else {
@@ -158,7 +159,7 @@ export async function PATCH(
           phoneNumber: updatedAppointment.phoneNumber,
           startTime: newStartTime,
           endTime: newEndTime,
-        })
+        }, ownerEmail)
 
         if (createResult.success && createResult.eventId) {
           await prisma.appointment.update({
@@ -169,19 +170,19 @@ export async function PATCH(
         } else {
           console.error('Failed to create new calendar event:', createResult.error)
           // If creation failed, clear googleEventId since old one may be deleted
-          await prisma.appointment.update({
-            where: { id: updatedAppointment.id },
-            data: { googleEventId: null },
-          })
-        }
-      } catch (error) {
-        console.error('Error replacing calendar event during reschedule:', error)
-        // Best-effort: clear googleEventId if we deleted the old event
         await prisma.appointment.update({
           where: { id: updatedAppointment.id },
           data: { googleEventId: null },
         })
       }
+    } catch (error) {
+      console.error('Error replacing calendar event during reschedule:', error)
+      // Best-effort: clear googleEventId if we deleted the old event
+      await prisma.appointment.update({
+        where: { id: updatedAppointment.id },
+        data: { googleEventId: null },
+      })
+    }
 
       // Send reschedule confirmation SMS
       try {
@@ -266,7 +267,8 @@ export async function DELETE(
     // Delete Google Calendar event
     if (appointment.googleEventId) {
       try {
-        const calendarResult = await deleteCalendarEvent(appointment.googleEventId)
+        const ownerEmail = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.ADMIN_EMAIL
+        const calendarResult = await deleteCalendarEvent(appointment.googleEventId, ownerEmail)
         if (calendarResult.success) {
           console.log('Calendar event deleted successfully:', appointment.googleEventId)
           // Clear the googleEventId on the appointment record
