@@ -31,8 +31,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ArrowLeft, Search, Calendar, Phone, User, Clock, X, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
-import { format, parseISO, startOfDay } from 'date-fns'
-import { formatETDateShort, formatETTime, formatETDateLong } from '@/lib/utils/timezone'
+import { format, parseISO } from 'date-fns'
+import { formatETDateShort, formatETTime, formatETDateLong, etDateKey } from '@/lib/utils/timezone'
 import { useToast } from '@/hooks/use-toast'
 
 interface Appointment {
@@ -136,11 +136,15 @@ export default function AppointmentsPage() {
   }
 
   const autoCompletePastAppointments = async (appointmentsList: Appointment[]) => {
-    const today = startOfDay(new Date())
+    // Get current date in ET timezone as a string key (YYYY-MM-DD)
+    const todayET = etDateKey(new Date())
+
     const pastConfirmedAppointments = appointmentsList.filter(apt => {
-      // Consider appointments that ended before today as past
-      const appointmentEnd = parseISO(apt.endTime)
-      return apt.status === 'confirmed' && appointmentEnd < today
+      // Get appointment end date in ET timezone as a string key
+      const appointmentEndDateET = etDateKey(apt.endTime)
+
+      // Compare date strings: appointment is past if its end date is before today in ET
+      return apt.status === 'confirmed' && appointmentEndDateET < todayET
     })
 
     if (pastConfirmedAppointments.length === 0) return
