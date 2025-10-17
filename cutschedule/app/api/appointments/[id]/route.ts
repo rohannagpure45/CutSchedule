@@ -245,19 +245,24 @@ export async function DELETE(
       )
     }
 
-    // Mark as cancelled instead of deleting
-    const cancelledAppointment = await prisma.appointment.update({
-      where: { id },
+    // Idempotent cancel: only transition confirmed -> cancelled once
+    const updateResult = await prisma.appointment.updateMany({
+      where: { id, status: 'confirmed' },
       data: { status: 'cancelled' },
     })
+    const cancelledAppointment = await prisma.appointment.findUnique({ where: { id } })
 
     // Send cancellation SMS
     try {
-      const smsResult = await sendCancellationSMS(appointment)
-      if (smsResult.success) {
-        console.log('Cancellation SMS sent successfully:', smsResult.messageId)
+      if (updateResult.count > 0) {
+        const smsResult = await sendCancellationSMS(appointment)
+        if (smsResult.success) {
+          console.log('Cancellation SMS sent successfully:', smsResult.messageId)
+        } else {
+          console.error('Failed to send cancellation SMS:', smsResult.error)
+        }
       } else {
-        console.error('Failed to send cancellation SMS:', smsResult.error)
+        console.log('Cancellation SMS suppressed: appointment was already cancelled')
       }
     } catch (error) {
       console.error('Error sending cancellation SMS:', error)

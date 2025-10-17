@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { formatETDateLong } from '@/lib/utils/timezone'
 
 // Update only when Privacy Policy changes
-const PRIVACY_POLICY_EFFECTIVE_DATE = new Date('2025-10-17')
+const PRIVACY_POLICY_EFFECTIVE_DATE = new Date(2025, 9, 17)
 
 export const metadata: Metadata = {
   title: 'Privacy Policy - CutSchedule',
