@@ -5,7 +5,7 @@ import { combineDateTime, parseDateInLocalTimezone } from '@/lib/utils/dates'
 import { addMinutes } from 'date-fns'
 import { APP_CONFIG } from '@/lib/constants'
 import { sendCancellationSMS, sendConfirmationSMS } from '@/lib/sms'
-import { deleteCalendarEvent, updateCalendarEvent } from '@/lib/calendar'
+import { deleteCalendarEvent, createCalendarEvent } from '@/lib/calendar'
 import { getBusinessDayRange } from '@/lib/utils/dates'
 
 export async function GET(
@@ -141,28 +141,46 @@ export async function PATCH(
         },
       })
 
-      // Update Google Calendar event
-      if (appointment.googleEventId) {
-        try {
-          const calendarResult = await updateCalendarEvent(
-            appointment.googleEventId,
-            {
-              id: updatedAppointment.id,
-              clientName: updatedAppointment.clientName,
-              phoneNumber: updatedAppointment.phoneNumber,
-              startTime: newStartTime,
-              endTime: newEndTime,
-            }
-          )
-          if (calendarResult.success) {
-            console.log('Calendar event updated successfully:', appointment.googleEventId)
+      // Replace Google Calendar event: delete old event (if any) then create a new one
+      try {
+        if (appointment.googleEventId) {
+          const delResult = await deleteCalendarEvent(appointment.googleEventId)
+          if (delResult.success) {
+            console.log('Deleted old calendar event:', appointment.googleEventId)
           } else {
-            console.error('Failed to update calendar event:', calendarResult.error)
+            console.warn('Failed to delete old calendar event:', delResult.error)
           }
-        } catch (error) {
-          console.error('Error updating calendar event:', error)
-          // Don't fail the reschedule if calendar update fails
         }
+
+        const createResult = await createCalendarEvent({
+          id: updatedAppointment.id,
+          clientName: updatedAppointment.clientName,
+          phoneNumber: updatedAppointment.phoneNumber,
+          startTime: newStartTime,
+          endTime: newEndTime,
+        })
+
+        if (createResult.success && createResult.eventId) {
+          await prisma.appointment.update({
+            where: { id: updatedAppointment.id },
+            data: { googleEventId: createResult.eventId },
+          })
+          console.log('Created new calendar event:', createResult.eventId)
+        } else {
+          console.error('Failed to create new calendar event:', createResult.error)
+          // If creation failed, clear googleEventId since old one may be deleted
+          await prisma.appointment.update({
+            where: { id: updatedAppointment.id },
+            data: { googleEventId: null },
+          })
+        }
+      } catch (error) {
+        console.error('Error replacing calendar event during reschedule:', error)
+        // Best-effort: clear googleEventId if we deleted the old event
+        await prisma.appointment.update({
+          where: { id: updatedAppointment.id },
+          data: { googleEventId: null },
+        })
       }
 
       // Send reschedule confirmation SMS
@@ -251,6 +269,11 @@ export async function DELETE(
         const calendarResult = await deleteCalendarEvent(appointment.googleEventId)
         if (calendarResult.success) {
           console.log('Calendar event deleted successfully:', appointment.googleEventId)
+          // Clear the googleEventId on the appointment record
+          await prisma.appointment.update({
+            where: { id },
+            data: { googleEventId: null },
+          })
         } else {
           console.error('Failed to delete calendar event:', calendarResult.error)
         }

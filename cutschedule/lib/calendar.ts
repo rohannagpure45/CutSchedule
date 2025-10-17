@@ -119,9 +119,12 @@ export async function createCalendarEvent(
   try {
     const calendar = await getGoogleCalendarClient(userEmail)
 
+    // Ensure we never fall back to any placeholder names from auth/session
+    const clientName = (appointment.clientName || '').trim() || 'Client'
+
     const event: CalendarEvent = {
-      summary: `Haircut - ${appointment.clientName}`,
-      description: `Haircut appointment for ${appointment.clientName}\nPhone: ${appointment.phoneNumber}\nAppointment ID: ${appointment.id}`,
+      summary: `Haircut - ${clientName}`,
+      description: `Haircut appointment for ${clientName}\nPhone: ${appointment.phoneNumber}\nAppointment ID: ${appointment.id}`,
       start: {
         dateTime: appointment.startTime.toISOString(),
         timeZone: 'America/New_York', // Adjust timezone as needed
@@ -175,9 +178,11 @@ export async function updateCalendarEvent(
   try {
     const calendar = await getGoogleCalendarClient(userEmail)
 
+    const clientName = (appointment.clientName || '').trim() || 'Client'
+
     const event: CalendarEvent = {
-      summary: `Haircut - ${appointment.clientName}`,
-      description: `Haircut appointment for ${appointment.clientName}\nPhone: ${appointment.phoneNumber}\nAppointment ID: ${appointment.id}`,
+      summary: `Haircut - ${clientName}`,
+      description: `Haircut appointment for ${clientName}\nPhone: ${appointment.phoneNumber}\nAppointment ID: ${appointment.id}`,
       start: {
         dateTime: appointment.startTime.toISOString(),
         timeZone: 'America/New_York',
