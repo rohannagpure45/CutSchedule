@@ -4,7 +4,7 @@ import { format, addMinutes, isWithinInterval } from 'date-fns'
 import { availabilityQuerySchema } from '@/lib/utils/validation'
 import { APP_CONFIG } from '@/lib/constants'
 import { parseDateInLocalTimezone, getBusinessDayRange, combineDateTime } from '@/lib/utils/dates'
-import { toZonedTime } from 'date-fns-tz'
+import { toZonedTime, formatInTimeZone } from 'date-fns-tz'
 import { BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
 
 export async function GET(request: NextRequest) {
@@ -173,7 +173,8 @@ function generateAvailableSlots(
       })
 
       if (!isBlockedByAppointment) {
-        const timeStr = format(currentSlot, 'HH:mm')
+        // Format slots in the business timezone to avoid server TZ/UTC drift
+        const timeStr = formatInTimeZone(currentSlot, BUSINESS_TIME_ZONE, 'HH:mm')
         // Avoid duplicate slots if windows overlap
         if (!slots.includes(timeStr)) {
           slots.push(timeStr)

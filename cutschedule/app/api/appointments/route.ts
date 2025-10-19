@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { appointmentBookingSchema, normalizePhoneNumber } from '@/lib/utils/validation'
 import { combineDateTime, parseDateInLocalTimezone } from '@/lib/utils/dates'
-import { addMinutes } from 'date-fns'
+import { addMinutes, format } from 'date-fns'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+import { BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
 import { APP_CONFIG } from '@/lib/constants'
 import { sendConfirmationSMS } from '@/lib/sms'
 import { createCalendarEvent } from '@/lib/calendar'
@@ -61,12 +63,18 @@ export async function POST(request: NextRequest) {
     console.log('Validated data:', validatedData)
 
     // Check if phone number already has an active appointment
+    // Compute "now" as an instant aligned via business timezone to be explicit
+    const now = new Date()
+    const nowZoned = toZonedTime(now, BUSINESS_TIME_ZONE)
+    const nowKey = format(nowZoned, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+    const nowETInstant = fromZonedTime(nowKey, BUSINESS_TIME_ZONE)
+
     const existingAppointment = await prisma.appointment.findFirst({
       where: {
         phoneNumber: validatedData.phoneNumber,
         status: 'confirmed',
         startTime: {
-          gte: new Date(),
+          gte: nowETInstant,
         },
       },
     })

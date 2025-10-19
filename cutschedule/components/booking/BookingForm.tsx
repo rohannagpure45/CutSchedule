@@ -11,8 +11,9 @@ import { Label } from "@/components/ui/label"
 import { DatePicker } from "./DatePicker"
 import { TimeSlotPicker } from "./TimeSlotPicker"
 import { appointmentBookingSchema, type AppointmentBookingData } from "@/lib/utils/validation"
-import { formatDate, formatTime } from "@/lib/utils/dates"
-import { etDateKey, formatETDateLong } from "@/lib/utils/timezone"
+import { formatDate } from "@/lib/utils/dates"
+import { etDateKey, formatETDateLong, formatETTime, BUSINESS_TIME_ZONE } from "@/lib/utils/timezone"
+import { fromZonedTime } from "date-fns-tz"
 import { User, Phone, Calendar, Clock, ArrowRight, Loader2 } from "lucide-react"
 import { APP_CONFIG } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -260,9 +261,12 @@ export function BookingForm({ onSubmit, className, initialData }: BookingFormPro
                   <div className="space-y-1 text-sm text-muted-foreground">
                     <p><Calendar className="w-4 h-4 inline mr-2" />{formatETDateLong(selectedDate)}</p>
                     <p><Clock className="w-4 h-4 inline mr-2" />
-                      {formatTime(new Date(`2000-01-01T${selectedTime}:00`))} - {
-                        formatTime(new Date(new Date(`2000-01-01T${selectedTime}:00`).getTime() + APP_CONFIG.APPOINTMENT_DURATION * 60000))
-                      } ({APP_CONFIG.APPOINTMENT_DURATION} minutes)
+                      {(() => {
+                        const dateStr = etDateKey(selectedDate!)
+                        const start = fromZonedTime(`${dateStr}T${selectedTime}:00.000`, BUSINESS_TIME_ZONE)
+                        const end = new Date(start.getTime() + APP_CONFIG.APPOINTMENT_DURATION * 60000)
+                        return `${formatETTime(start)} - ${formatETTime(end)}`
+                      })()} ({APP_CONFIG.APPOINTMENT_DURATION} minutes)
                     </p>
                   </div>
                 </div>

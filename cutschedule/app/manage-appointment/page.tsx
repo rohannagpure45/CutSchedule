@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog"
 import { Calendar, Clock, MapPin, Phone, ArrowLeft, Search, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
-import { format } from "date-fns"
 import { formatETDateLong, formatETTime } from '@/lib/utils/timezone'
 import { APP_CONFIG } from "@/lib/constants"
 import { normalizePhoneNumber } from "@/lib/utils/validation"
@@ -71,6 +70,8 @@ function ManageAppointmentContent() {
 
       // Filter for upcoming appointments only
       const upcomingAppointments = appointments.filter((apt: Appointment) => {
+        // startTime is stored as an instant (UTC Date in DB),
+        // so compare directly to the current instant
         const aptDate = new Date(apt.startTime)
         return aptDate > new Date() && apt.status === 'confirmed'
       })

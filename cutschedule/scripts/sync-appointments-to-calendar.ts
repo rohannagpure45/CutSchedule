@@ -9,18 +9,27 @@
 
 import { prisma } from '../lib/db'
 import { createCalendarEvent } from '../lib/calendar'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+import { format } from 'date-fns'
+import { BUSINESS_TIME_ZONE } from '../lib/utils/timezone'
 
 async function syncAppointmentsToCalendar() {
   console.log('🔄 Starting calendar sync...\n')
 
   try {
     // Find all confirmed appointments without a Google Calendar event
+    // Align "now" to an ET instant so the future filter is consistent with business TZ
+    const now = new Date()
+    const nowZoned = toZonedTime(now, BUSINESS_TIME_ZONE)
+    const nowKey = format(nowZoned, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+    const nowETInstant = fromZonedTime(nowKey, BUSINESS_TIME_ZONE)
+
     const appointments = await prisma.appointment.findMany({
       where: {
         googleEventId: null,
         status: 'confirmed',
         startTime: {
-          gte: new Date(), // Only sync future appointments
+          gte: nowETInstant, // Only sync future appointments (ET-aligned)
         },
       },
       orderBy: {

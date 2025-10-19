@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ArrowLeft, AlertCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { type AppointmentBookingData } from "@/lib/utils/validation"
-import { formatETDateLong, formatETTime } from '@/lib/utils/timezone'
+import { formatETDateLong, formatETTime, etDateKey, BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
+import { formatInTimeZone } from 'date-fns-tz'
 
 interface Appointment {
   id: string
@@ -134,10 +135,9 @@ function RescheduleContent() {
 
   // Extract date and time from appointment for pre-filling
   const appointmentDate = new Date(appointment.startTime)
-  const initialDate = appointmentDate.toISOString().split('T')[0]
-  const hours = appointmentDate.getHours().toString().padStart(2, '0')
-  const minutes = appointmentDate.getMinutes().toString().padStart(2, '0')
-  const initialTime = `${hours}:${minutes}`
+  // Keep prefill consistent with ET day and ET time (24h)
+  const initialDate = etDateKey(appointmentDate)
+  const initialTime = formatInTimeZone(appointmentDate, BUSINESS_TIME_ZONE, 'HH:mm')
 
   return (
     <div className="container mx-auto px-4 py-8">

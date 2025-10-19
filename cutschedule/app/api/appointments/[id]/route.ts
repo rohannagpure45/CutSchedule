@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { appointmentUpdateSchema } from '@/lib/utils/validation'
 import { combineDateTime, parseDateInLocalTimezone } from '@/lib/utils/dates'
-import { addMinutes } from 'date-fns'
+import { addMinutes, format } from 'date-fns'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+import { BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
 import { APP_CONFIG } from '@/lib/constants'
 import { sendCancellationSMS, sendConfirmationSMS } from '@/lib/sms'
 import { deleteCalendarEvent, createCalendarEvent } from '@/lib/calendar'
@@ -71,8 +73,12 @@ export async function PATCH(
       const newStartTime = combineDateTime(validatedData.date, validatedData.time)
       const newEndTime = addMinutes(newStartTime, APP_CONFIG.APPOINTMENT_DURATION)
 
-      // Check if new time is in the future
-      if (newStartTime <= new Date()) {
+      // Check if new time is in the future (aligned to business timezone "now")
+      const now = new Date()
+      const nowZoned = toZonedTime(now, BUSINESS_TIME_ZONE)
+      const nowKey = format(nowZoned, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+      const nowETInstant = fromZonedTime(nowKey, BUSINESS_TIME_ZONE)
+      if (newStartTime <= nowETInstant) {
         return NextResponse.json(
           { error: 'Cannot reschedule to a past time' },
           { status: 400 }
@@ -80,7 +86,8 @@ export async function PATCH(
       }
 
       // Check working hours for new date
-      const dayOfWeek = newDate.getDay()
+      // Determine weekday in business timezone to avoid UTC day shifts
+      const dayOfWeek = toZonedTime(newDate, BUSINESS_TIME_ZONE).getDay()
       const workingHours = await prisma.workingHours.findUnique({
         where: { dayOfWeek },
       })
