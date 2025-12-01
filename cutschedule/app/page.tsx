@@ -79,7 +79,7 @@ export default function HomePage() {
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Visit Us</CardTitle>
             <CardDescription>
-              Located in the heart of the city, providing quality cuts since day one.
+              Located on campus @ Northeastern, providing quality cuts since day one.
             </CardDescription>
           </CardHeader>
           <CardContent>
