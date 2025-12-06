@@ -114,6 +114,13 @@ export function normalizePhoneNumber(phone: string): string {
   }
 }
 
+// Mask phone number to protect PII: "1234567890" -> "***-***-7890"
+export function maskPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length < 4) return ''
+  return `***-***-${digits.slice(-4)}`
+}
+
 export function validateAppointmentTime(date: string, time: string): boolean {
   const appointmentDate = new Date(`${date}T${time}:00`)
   const now = new Date()

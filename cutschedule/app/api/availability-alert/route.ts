@@ -6,21 +6,10 @@ import { sendAvailabilityAlertSMS } from '@/lib/sms'
 import { subMonths, format } from 'date-fns'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { BUSINESS_TIME_ZONE } from '@/lib/utils/timezone'
+import { maskPhone } from '@/lib/utils/validation'
 
-// Timeout per SMS send to prevent serverless function timeouts
-const SMS_TIMEOUT_MS = 10000
-// Max clients per request to prevent very large invocations
+// Max clients per request to prevent serverless function timeouts
 const MAX_CLIENTS_PER_REQUEST = 50
-
-// Wrap a promise with a timeout
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('SMS send timeout')), ms)
-    ),
-  ])
-}
 
 interface EligibleClient {
   phoneNumber: string
@@ -55,7 +44,7 @@ async function getEligibleClients(): Promise<EligibleClient[]> {
   // Get all appointments from the past 6 months (including cancelled)
   // A recurring client is anyone who has booked 2+ times, regardless of status
   // Order by date ascending so the last occurrence has the most recent name
-  // Filter out null/empty phone numbers to avoid SMS failures
+  // Filter out empty phone numbers to avoid SMS failures
   const appointments = await prisma.appointment.findMany({
     where: {
       date: {
@@ -63,7 +52,6 @@ async function getEligibleClients(): Promise<EligibleClient[]> {
       },
       phoneNumber: {
         not: '',
-        isNot: null,
       },
     },
     select: {
@@ -110,12 +98,6 @@ async function getEligibleClients(): Promise<EligibleClient[]> {
   return eligibleClients
 }
 
-// Mask phone number to protect PII: "1234567890" -> "***-***-7890"
-function maskPhone(phone: string): string {
-  if (!phone || phone.length < 4) return '***'
-  return `***-***-${phone.slice(-4)}`
-}
-
 // GET - Preview eligible clients count
 export async function GET(request: NextRequest) {
   try {
@@ -128,7 +110,6 @@ export async function GET(request: NextRequest) {
     const eligibleClients = await getEligibleClients()
     const includeDetails = request.nextUrl.searchParams.get('includeDetails') === 'true'
 
-    // Default response: only count (no PII)
     const response: {
       eligibleCount: number
       clients?: { clientName: string; phoneNumber: string }[]
@@ -136,7 +117,6 @@ export async function GET(request: NextRequest) {
       eligibleCount: eligibleClients.length,
     }
 
-    // Include masked client details only when explicitly requested
     if (includeDetails) {
       response.clients = eligibleClients.map((client) => ({
         clientName: client.clientName,
@@ -199,12 +179,7 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < eligibleClients.length; i += CONCURRENCY_LIMIT) {
       const batch = eligibleClients.slice(i, i + CONCURRENCY_LIMIT)
       const results = await Promise.allSettled(
-        batch.map((client) =>
-          withTimeout(
-            sendAvailabilityAlertSMS(client.phoneNumber, dryRun),
-            SMS_TIMEOUT_MS
-          )
-        )
+        batch.map((client) => sendAvailabilityAlertSMS(client.phoneNumber, dryRun))
       )
 
       for (const result of results) {

@@ -69,18 +69,6 @@ export async function sendSMS(
   messageType: keyof SMSTemplate,
   data?: SMSData
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  // Validate that data is provided for templates with placeholders
-  const templatesRequiringData: Array<keyof SMSTemplate> = [
-    'confirmation', 'reminder_1day', 'reminder_1hour',
-    'reschedule_2weeks', 'reschedule_3weeks', 'cancellation'
-  ]
-
-  if (templatesRequiringData.includes(messageType) && !data) {
-    const errorMessage = `Template '${messageType}' requires data but none was provided`
-    console.error(errorMessage)
-    return { success: false, error: errorMessage }
-  }
-
   try {
     // Format phone number to ensure consistency
     const formattedPhone = formatPhoneNumber(phoneNumber)
