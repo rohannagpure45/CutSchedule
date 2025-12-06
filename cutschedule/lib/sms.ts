@@ -38,6 +38,7 @@ export interface SMSTemplate {
   reschedule_2weeks: string
   reschedule_3weeks: string
   cancellation: string
+  availability_alert: string
 }
 
 const SMS_TEMPLATES: SMSTemplate = {
@@ -51,7 +52,9 @@ const SMS_TEMPLATES: SMSTemplate = {
 
   reschedule_3weeks: `Hi {clientName}! Ready for your next haircut? Book your appointment with Neil at https://cut-schedule-ck4d12342.vercel.app. We're here when you're ready!`,
 
-  cancellation: `Hi {clientName}! Your haircut appointment for {date} at {time} has been cancelled. Book a new appointment anytime at https://cut-schedule-ck4d12342.vercel.app`
+  cancellation: `Hi {clientName}! Your haircut appointment for {date} at {time} has been cancelled. Book a new appointment anytime at https://cut-schedule-ck4d12342.vercel.app`,
+
+  availability_alert: `Neil has opened available slots, book now! https://cut-schedule-ck4d12342.vercel.app Reply STOP to opt out.`
 }
 
 export interface SMSData {
@@ -64,8 +67,20 @@ export interface SMSData {
 export async function sendSMS(
   phoneNumber: string,
   messageType: keyof SMSTemplate,
-  data: SMSData
+  data?: SMSData
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  // Validate that data is provided for templates with placeholders
+  const templatesRequiringData: Array<keyof SMSTemplate> = [
+    'confirmation', 'reminder_1day', 'reminder_1hour',
+    'reschedule_2weeks', 'reschedule_3weeks', 'cancellation'
+  ]
+
+  if (templatesRequiringData.includes(messageType) && !data) {
+    const errorMessage = `Template '${messageType}' requires data but none was provided`
+    console.error(errorMessage)
+    return { success: false, error: errorMessage }
+  }
+
   try {
     // Format phone number to ensure consistency
     const formattedPhone = formatPhoneNumber(phoneNumber)
@@ -79,7 +94,7 @@ export async function sendSMS(
 
       // Log failed SMS in database with validation error
       await logSMS(
-        data.appointmentId || 'manual',
+        data?.appointmentId || 'manual',
         phoneNumber,
         messageType,
         'failed'
@@ -92,12 +107,14 @@ export async function sendSMS(
       }
     }
 
-    // Get template and replace placeholders
+    // Get template and replace placeholders (only if data provided)
     let message = SMS_TEMPLATES[messageType]
-    message = message.replace('{clientName}', data.clientName)
-    message = message.replace('{date}', data.date)
-    message = message.replace('{time}', data.time)
-    message = message.replace('{appointmentId}', data.appointmentId || '')
+    if (data) {
+      message = message.replace('{clientName}', data.clientName)
+      message = message.replace('{date}', data.date)
+      message = message.replace('{time}', data.time)
+      message = message.replace('{appointmentId}', data.appointmentId || '')
+    }
 
     console.log(`Sending ${messageType} SMS to ${formattedPhone} (original: ${phoneNumber}):`, message)
 
@@ -112,7 +129,7 @@ export async function sendSMS(
 
     // Log SMS in database
     await logSMS(
-      data.appointmentId || 'manual',
+      data?.appointmentId || 'manual',
       phoneNumber,
       messageType,
       'sent',
@@ -129,7 +146,7 @@ export async function sendSMS(
 
     // Log failed SMS in database
     await logSMS(
-      data.appointmentId || 'manual',
+      data?.appointmentId || 'manual',
       phoneNumber,
       messageType,
       'failed'
@@ -274,4 +291,18 @@ export async function sendCancellationSMS(
       appointmentId: appointment.id,
     }
   )
+}
+
+export async function sendAvailabilityAlertSMS(
+  phoneNumber: string,
+  dryRun: boolean = false
+): Promise<{ success: boolean; messageId?: string; error?: string; dryRun?: boolean }> {
+  if (dryRun) {
+    const formattedPhone = formatPhoneNumber(phoneNumber)
+    console.log(`[DRY RUN] Would send availability_alert to ${formattedPhone}`)
+    return { success: true, dryRun: true }
+  }
+
+  // Delegate to sendSMS - no data needed for availability_alert template
+  return await sendSMS(phoneNumber, 'availability_alert')
 }

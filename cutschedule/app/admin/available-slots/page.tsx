@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { SimpleCalendar } from '@/components/ui/simple-calendar'
-import { ArrowLeft, Plus, Calendar, Trash2, Clock } from 'lucide-react'
+import { ArrowLeft, Plus, Calendar, Trash2, Clock, Bell } from 'lucide-react'
 import { format, parseISO, startOfToday } from 'date-fns'
 import { formatETDateLong } from '@/lib/utils/timezone'
 import { useToast } from '@/hooks/use-toast'
@@ -28,6 +28,11 @@ interface AvailableSlot {
   endTime: string
   reason: string | null
   createdAt: string
+}
+
+interface EligibleClient {
+  phoneNumber: string
+  clientName: string
 }
 
 export default function AvailableSlotsPage() {
@@ -42,6 +47,11 @@ export default function AvailableSlotsPage() {
   const [endTime, setEndTime] = useState('18:00')
   const [reason, setReason] = useState('')
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [alertDialogOpen, setAlertDialogOpen] = useState(false)
+  const [alertLoading, setAlertLoading] = useState(false)
+  const [alertFetchLoading, setAlertFetchLoading] = useState(false)
+  const [eligibleClients, setEligibleClients] = useState<EligibleClient[]>([])
+  const alertDialogWantedRef = useRef(false)
 
   useEffect(() => {
     // Don't wait for session, just fetch available slots immediately
@@ -118,9 +128,11 @@ export default function AvailableSlotsPage() {
           title: 'Success',
           description: 'Available slot added successfully'
         })
-        fetchAvailableSlots()
+        await fetchAvailableSlots()
         setDialogOpen(false)
         resetForm()
+        // After successful slot creation, offer to alert clients
+        handleOpenAlertDialog()
       } else {
         toast({
           title: 'Error',
@@ -187,7 +199,11 @@ export default function AvailableSlotsPage() {
           title: 'Bulk slots created',
           description: `Created ${data.created ?? 0} time slot${(data.created ?? 0) === 1 ? '' : 's'}`
         })
-        fetchAvailableSlots()
+        await fetchAvailableSlots()
+        // After successful bulk creation, offer to alert clients
+        if (data.created > 0) {
+          handleOpenAlertDialog()
+        }
       } else {
         const err = await response.json().catch(() => ({}))
         toast({
@@ -205,6 +221,94 @@ export default function AvailableSlotsPage() {
       })
     } finally {
       setBulkLoading(false)
+    }
+  }
+
+  const handleOpenAlertDialog = async () => {
+    alertDialogWantedRef.current = true
+    setAlertFetchLoading(true)
+    try {
+      const response = await fetch('/api/availability-alert?includeDetails=true')
+      if (response.ok) {
+        const data = await response.json()
+        // Only open if still wanted (user didn't close during fetch)
+        if (alertDialogWantedRef.current) {
+          setEligibleClients(data.clients || [])
+          setAlertDialogOpen(true)
+        }
+      } else {
+        if (alertDialogWantedRef.current) {
+          toast({
+            title: 'Error',
+            description: 'Failed to fetch eligible clients',
+            variant: 'destructive'
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching eligible clients:', error)
+      if (alertDialogWantedRef.current) {
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch eligible clients',
+          variant: 'destructive'
+        })
+      }
+    } finally {
+      setAlertFetchLoading(false)
+    }
+  }
+
+  // Format phone number for display (phone is already masked from API as "***-***-XXXX")
+  const formatPhoneDisplay = (phone: string) => {
+    return phone || ''
+  }
+
+  const handleSendAlerts = async () => {
+    setAlertLoading(true)
+    try {
+      const response = await fetch('/api/availability-alert', {
+        method: 'POST'
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.dryRun) {
+          toast({
+            title: 'Dry Run Complete',
+            description: `Would have sent to ${data.sent} client${data.sent === 1 ? '' : 's'}`
+          })
+          setAlertDialogOpen(false)
+        } else if (data.failed > 0) {
+          // Keep dialog open when some alerts failed so admin can see the issue
+          toast({
+            title: 'Partial Success',
+            description: `Sent to ${data.sent} client${data.sent === 1 ? '' : 's'}, ${data.failed} failed`,
+            variant: 'destructive'
+          })
+        } else {
+          toast({
+            title: 'Alerts Sent',
+            description: `Sent to ${data.sent} client${data.sent === 1 ? '' : 's'}`
+          })
+          setAlertDialogOpen(false)
+        }
+      } else {
+        const err = await response.json().catch(() => ({}))
+        toast({
+          title: 'Error',
+          description: err.error || 'Failed to send alerts',
+          variant: 'destructive'
+        })
+      }
+    } catch (error) {
+      console.error('Error sending alerts:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to send alerts',
+        variant: 'destructive'
+      })
+    } finally {
+      setAlertLoading(false)
     }
   }
 
@@ -247,7 +351,7 @@ export default function AvailableSlotsPage() {
         </div>
 
         {/* Bulk tools */}
-        <div className="mb-6">
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardHeader>
               <CardTitle>Bulk Create Slots</CardTitle>
@@ -261,6 +365,27 @@ export default function AvailableSlotsPage() {
               </Button>
               <p className="text-xs text-muted-foreground mt-2">
                 Only upcoming shifts from this week are duplicated to the next week without existing slots. Days with slots are skipped.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="w-5 h-5" />
+                Alert Recurring Clients
+              </CardTitle>
+              <CardDescription>
+                Send a text message to clients with 2+ appointments in the past 6 months.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={handleOpenAlertDialog} variant="secondary" disabled={alertFetchLoading}>
+                <Bell className="w-4 h-4 mr-2" />
+                {alertFetchLoading ? 'Loading…' : 'Alert Clients of New Availability'}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Clients are limited to 1 alert per day to prevent spam.
               </p>
             </CardContent>
           </Card>
@@ -395,6 +520,64 @@ export default function AvailableSlotsPage() {
             </Button>
             <Button onClick={handleAddAvailableSlot}>
               Add Available Slot
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={alertDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          alertDialogWantedRef.current = false
+        }
+        setAlertDialogOpen(open)
+        if (!open) {
+          setEligibleClients([])
+          setAlertLoading(false)
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5" />
+              Alert Recurring Clients
+            </DialogTitle>
+            <DialogDescription>
+              Send a text message to notify recurring clients about new availability.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {eligibleClients.length === 0 ? (
+              <p className="text-center text-muted-foreground">
+                No eligible clients to notify. Clients need 2+ appointments in the past 6 months and must not have been notified today.
+              </p>
+            ) : (
+              <div>
+                <p className="text-center mb-4">
+                  <span className="text-2xl font-bold text-primary">{eligibleClients.length}</span>
+                  <span className="text-muted-foreground ml-2">
+                    recurring client{eligibleClients.length === 1 ? '' : 's'} will receive a text message
+                  </span>
+                </p>
+                <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
+                  {eligibleClients.map((client, index) => (
+                    <div key={index} className="px-3 py-2 flex justify-between items-center">
+                      <span className="font-medium">{client.clientName}</span>
+                      <span className="text-sm text-muted-foreground">{formatPhoneDisplay(client.phoneNumber)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAlertDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendAlerts}
+              disabled={alertLoading || eligibleClients.length === 0}
+            >
+              {alertLoading ? 'Sending…' : `Send Alert${eligibleClients.length === 1 ? '' : 's'}`}
             </Button>
           </DialogFooter>
         </DialogContent>
