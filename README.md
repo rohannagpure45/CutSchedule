@@ -1,5 +1,7 @@
 # CutSchedule
 
+cut-schedule-ck4d12342.vercel.app
+
 A modern appointment booking system for barbers and salons with automated SMS reminders, Google Calendar integration, and a powerful admin dashboard.
 
 ## Features
